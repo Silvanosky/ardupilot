@@ -117,7 +117,6 @@ typedef struct {
     i2c_opmode_t op_code; /*!< haredware cmd type */
 }i2c_cmd_t;
 
-
 /**
  * @brief I2C driver install
  *
@@ -244,7 +243,7 @@ esp_err_t i2c_set_pin(i2c_port_t i2c_num, int sda_io_num, int scl_io_num,
  *     - ESP_OK Success
  *     - ESP_ERR_INVALID_ARG Parameter error
  */
-esp_err_t i2c_master_start(i2c_cmd_t* cmd);
+esp_err_t i2c_master_start(i2c_cmd_t* cmd, size_t* n);
 
 /**
  * @brief Queue command for I2C master to write one byte to I2C bus
@@ -260,7 +259,7 @@ esp_err_t i2c_master_start(i2c_cmd_t* cmd);
  *     - ESP_OK Success
  *     - ESP_ERR_INVALID_ARG Parameter error
  */
-esp_err_t i2c_master_write_byte(i2c_cmd_t* cmd, size_t n, uint8_t data, bool ack_en);
+esp_err_t i2c_master_write_byte(i2c_cmd_t* cmd, size_t* n, uint8_t data, bool ack_en);
 
 /**
  * @brief Queue command for I2C master to write buffer to I2C bus
@@ -279,7 +278,7 @@ esp_err_t i2c_master_write_byte(i2c_cmd_t* cmd, size_t n, uint8_t data, bool ack
  *     - ESP_OK Success
  *     - ESP_ERR_INVALID_ARG Parameter error
  */
-esp_err_t i2c_master_write(i2c_cmd_t cmd, size_t n, uint8_t* data, size_t data_len, bool ack_en);
+esp_err_t i2c_master_write(i2c_cmd_t* cmd, size_t* n, uint8_t* data, size_t data_len, bool ack_en);
 
 /**
  * @brief Queue command for I2C master to read one byte from I2C bus
@@ -297,7 +296,7 @@ esp_err_t i2c_master_write(i2c_cmd_t cmd, size_t n, uint8_t* data, size_t data_l
  *     - ESP_OK Success
  *     - ESP_ERR_INVALID_ARG Parameter error
  */
-esp_err_t i2c_master_read_byte(i2c_cmd_t* cmd_handle, uint8_t* data, i2c_ack_type_t ack);
+esp_err_t i2c_master_read_byte(i2c_cmd_t* cmd_handle, size_t* n, uint8_t* data, i2c_ack_type_t ack);
 
 /**
  * @brief Queue command for I2C master to read data from I2C bus
@@ -316,7 +315,7 @@ esp_err_t i2c_master_read_byte(i2c_cmd_t* cmd_handle, uint8_t* data, i2c_ack_typ
  *     - ESP_OK Success
  *     - ESP_ERR_INVALID_ARG Parameter error
  */
-esp_err_t i2c_master_read(i2c_cmd_t* cmd_handle, size_t n, uint8_t* data, size_t data_len, i2c_ack_type_t ack);
+esp_err_t i2c_master_read(i2c_cmd_t* cmd_handle, size_t* n, uint8_t* data, size_t data_len, i2c_ack_type_t ack);
 
 /**
  * @brief Queue command for I2C master to generate a stop signal
@@ -330,7 +329,7 @@ esp_err_t i2c_master_read(i2c_cmd_t* cmd_handle, size_t n, uint8_t* data, size_t
  *     - ESP_OK Success
  *     - ESP_ERR_INVALID_ARG Parameter error
  */
-esp_err_t i2c_master_stop(i2c_cmd_t* cmd);
+esp_err_t i2c_master_stop(i2c_cmd_t* cmd, size_t* n);
 
 /**
  * @brief I2C master send queued commands.

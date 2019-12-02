@@ -99,6 +99,7 @@ typedef enum {
     I2C_STATUS_TIMEOUT,   /*!< I2C bus status error, and operation timeout */
 } i2c_status_t;
 
+
 typedef struct {
     int type;
 } i2c_cmd_evt_t;
@@ -164,6 +165,7 @@ esp_err_t i2c_driver_install(i2c_port_t i2c_num, int intr_alloc_flags)
         p_i2c->status = I2C_STATUS_IDLE;
 
         p_i2c->intr_alloc_flags = intr_alloc_flags;
+
 		p_i2c->rx_fifo_remain = I2C_FIFO_LEN;
 		p_i2c->tx_fifo_remain = I2C_FIFO_LEN;
 
@@ -652,7 +654,7 @@ esp_err_t i2c_isr_free(intr_handle_t handle)
     return esp_intr_free(handle);
 }
 
-esp_err_t i2c_set_pin(i2c_port_t i2c_num, int sda_io_num, int scl_io_num, gpio_pullup_t sda_pullup_en, gpio_pullup_t scl_pullup_en)
+esp_err_t IRAM_ATTR i2c_set_pin(i2c_port_t i2c_num, int sda_io_num, int scl_io_num, gpio_pullup_t sda_pullup_en, gpio_pullup_t scl_pullup_en)
 {
     I2C_CHECK(( i2c_num < I2C_NUM_MAX ), I2C_NUM_ERROR_STR, ESP_ERR_INVALID_ARG);
     I2C_CHECK(((sda_io_num < 0) || ((GPIO_IS_VALID_OUTPUT_GPIO(sda_io_num)))), I2C_SDA_IO_ERR_STR, ESP_ERR_INVALID_ARG);
@@ -714,9 +716,10 @@ esp_err_t i2c_set_pin(i2c_port_t i2c_num, int sda_io_num, int scl_io_num, gpio_p
     return ESP_OK;
 }
 
-esp_err_t i2c_master_start(i2c_cmd_t* cmd)
+esp_err_t IRAM_ATTR i2c_master_start(i2c_cmd_t* cmd, size_t* n)
 {
     I2C_CHECK(cmd != NULL, I2C_CMD_LINK_INIT_ERR_STR, ESP_ERR_INVALID_ARG);
+	cmd = &cmd[(*n)++];
     cmd->ack_en = 0;
     cmd->ack_exp = 0;
     cmd->ack_val = 0;
@@ -727,9 +730,10 @@ esp_err_t i2c_master_start(i2c_cmd_t* cmd)
     return ESP_OK;
 }
 
-esp_err_t i2c_master_stop(i2c_cmd_t* cmd)
+esp_err_t IRAM_ATTR i2c_master_stop(i2c_cmd_t* cmd, size_t* n)
 {
     I2C_CHECK(cmd != NULL, I2C_CMD_LINK_INIT_ERR_STR, ESP_ERR_INVALID_ARG);
+	cmd = &cmd[(*n)++];
     cmd->ack_en = 0;
     cmd->ack_exp = 0;
     cmd->ack_val = 0;
@@ -739,14 +743,16 @@ esp_err_t i2c_master_stop(i2c_cmd_t* cmd)
     return ESP_OK;
 }
 
-esp_err_t i2c_master_write(i2c_cmd_t* cmd, size_t n, uint8_t* data, size_t data_len, bool ack_en)
+esp_err_t IRAM_ATTR i2c_master_write(i2c_cmd_t* cmd, size_t* n, uint8_t* data, size_t data_len, bool ack_en)
 {
     I2C_CHECK((data != NULL), I2C_ADDR_ERROR_STR, ESP_ERR_INVALID_ARG);
     I2C_CHECK((cmd != NULL), I2C_CMD_LINK_INIT_ERR_STR, ESP_ERR_INVALID_ARG);
 
     uint8_t len_tmp;
     int data_offset = 0;
-	size_t size = 0;
+
+	cmd = &cmd[(*n)++];
+
     while (data_len > 0) {
         len_tmp = data_len > 0xff ? 0xff : data_len;
         data_len -= len_tmp;
@@ -759,18 +765,15 @@ esp_err_t i2c_master_write(i2c_cmd_t* cmd, size_t n, uint8_t* data, size_t data_
         data_offset += len_tmp;
 
 		cmd++;
-		size++;
-
-        if (size >= n) {
-            return ESP_ERR_INVALID_ARG;
-        }
+		(*n)++;
     }
     return ESP_OK;
 }
 
-esp_err_t i2c_master_write_byte(i2c_cmd_t* cmd, uint8_t data, bool ack_en)
+esp_err_t IRAM_ATTR i2c_master_write_byte(i2c_cmd_t* cmd, size_t* n, uint8_t data, bool ack_en)
 {
     I2C_CHECK(cmd != NULL, I2C_CMD_LINK_INIT_ERR_STR, ESP_ERR_INVALID_ARG);
+	cmd = &cmd[(*n)++];
     cmd->ack_en = ack_en;
     cmd->ack_exp = 0;
     cmd->ack_val = 0;
@@ -782,13 +785,13 @@ esp_err_t i2c_master_write_byte(i2c_cmd_t* cmd, uint8_t data, bool ack_en)
     return ESP_OK;
 }
 
-static esp_err_t i2c_master_read_static(i2c_cmd_t* cmd, size_t n, uint8_t* data, size_t data_len, i2c_ack_type_t ack)
+static esp_err_t IRAM_ATTR i2c_master_read_static(i2c_cmd_t* cmd, size_t* n, uint8_t* data, size_t data_len, i2c_ack_type_t ack)
 {
     I2C_CHECK(cmd != NULL, I2C_CMD_LINK_INIT_ERR_STR, ESP_ERR_INVALID_ARG);
 
     int len_tmp;
     int data_offset = 0;
-	size_t size = 0;
+	cmd = &cmd[(*n)++];
     while (data_len > 0) {
         len_tmp = data_len > 0xff ? 0xff : data_len;
         data_len -= len_tmp;
@@ -801,20 +804,18 @@ static esp_err_t i2c_master_read_static(i2c_cmd_t* cmd, size_t n, uint8_t* data,
 
         data_offset += len_tmp;
 		cmd++;
-		size++;
-        if (size >= n) {
-            return ESP_ERR_INVALID_ARG;
-        }
+		(*n)++;
     }
     return ESP_OK;
 }
 
-esp_err_t i2c_master_read_byte(i2c_cmd_t* cmd, uint8_t* data, i2c_ack_type_t ack)
+esp_err_t IRAM_ATTR i2c_master_read_byte(i2c_cmd_t* cmd, size_t* n, uint8_t* data, i2c_ack_type_t ack)
 {
     I2C_CHECK((data != NULL), I2C_ADDR_ERROR_STR, ESP_ERR_INVALID_ARG);
     I2C_CHECK(cmd != NULL, I2C_CMD_LINK_INIT_ERR_STR, ESP_ERR_INVALID_ARG);
     I2C_CHECK(ack < I2C_MASTER_ACK_MAX, I2C_ACK_TYPE_ERR_STR, ESP_ERR_INVALID_ARG);
 
+	cmd = &cmd[(*n)++];
     cmd->ack_en = 0;
     cmd->ack_exp = 0;
     cmd->ack_val = ((ack == I2C_MASTER_LAST_NACK) ? I2C_MASTER_NACK : (ack & 0x1));
@@ -825,7 +826,7 @@ esp_err_t i2c_master_read_byte(i2c_cmd_t* cmd, uint8_t* data, i2c_ack_type_t ack
     return ESP_OK;
 }
 
-esp_err_t i2c_master_read(i2c_cmd_t* cmd, size_t n, uint8_t* data, size_t data_len, i2c_ack_type_t ack)
+esp_err_t IRAM_ATTR i2c_master_read(i2c_cmd_t* cmd, size_t* n, uint8_t* data, size_t data_len, i2c_ack_type_t ack)
 {
     I2C_CHECK((data != NULL), I2C_ADDR_ERROR_STR, ESP_ERR_INVALID_ARG);
     I2C_CHECK(cmd != NULL, I2C_CMD_LINK_INIT_ERR_STR, ESP_ERR_INVALID_ARG);
@@ -836,13 +837,13 @@ esp_err_t i2c_master_read(i2c_cmd_t* cmd, size_t n, uint8_t* data, size_t data_l
         return i2c_master_read_static(cmd, n, data, data_len, ack);
     } else {
         if(data_len == 1) {
-            return i2c_master_read_byte(cmd, data, I2C_MASTER_NACK);
+            return i2c_master_read_byte(cmd, n, data, I2C_MASTER_NACK);
         } else {
             esp_err_t ret;
             if((ret =  i2c_master_read_static(cmd, n, data, data_len - 1, I2C_MASTER_ACK)) != ESP_OK) {
                 return ret;
             }
-            return i2c_master_read_byte(cmd, data + data_len - 1, I2C_MASTER_NACK);
+            return i2c_master_read_byte(cmd, n, data + data_len - 1, I2C_MASTER_NACK);
         }
     }
 }
@@ -969,8 +970,7 @@ static void IRAM_ATTR i2c_master_cmd_begin_static(i2c_port_t i2c_num)
     i2c_cmd_evt_t evt;
 
     //This should never happen
-    if (p_i2c->mode == I2C_MODE_SLAVE
-		|| p_i2c->cmds == NULL) {
+    if (p_i2c->mode == I2C_MODE_SLAVE) {
         return;
     }
 
@@ -996,11 +996,13 @@ static void IRAM_ATTR i2c_master_cmd_begin_static(i2c_port_t i2c_num)
 
         return;
 
-    } else if (p_i2c->cmds_idx < p_i2c->cmds_size && p_i2c->status == I2C_STATUS_READ) {
+    } else if (p_i2c->cmds != NULL && p_i2c->status == I2C_STATUS_READ) {
         i2c_cmd_t *cmd = &p_i2c->cmds[p_i2c->cmds_idx];
         while (p_i2c->rx_cnt-- > 0) {
             *cmd->data++ = READ_PERI_REG(I2C_DATA_APB_REG(i2c_num));
         }
+		//printf("i2c_ read %d\n", cmd->byte_num);
+
         if (cmd->byte_num > 0) {
             p_i2c->rx_fifo_remain = I2C_FIFO_LEN;
             p_i2c->cmd_idx = 0;
@@ -1010,22 +1012,23 @@ static void IRAM_ATTR i2c_master_cmd_begin_static(i2c_port_t i2c_num)
     }
 
 	if (p_i2c->cmds_idx >= p_i2c->cmds_size) {
-		p_i2c->cmds = NULL;
-		p_i2c->cmds_idx = 0;
-		p_i2c->cmds_size = 0;
-
         evt.type = I2C_CMD_EVT_DONE;
         xQueueOverwriteFromISR(p_i2c->cmd_evt_queue, &evt, &HPTaskAwoken);
 
         if (HPTaskAwoken == pdTRUE) {
             portYIELD_FROM_ISR();
         }
+		p_i2c->cmds = NULL;
+		p_i2c->cmds_size = 0;
+		p_i2c->cmds_idx = 0;
+
         // Return to the IDLE status after cmd_eve_done signal were send out.
         p_i2c->status = I2C_STATUS_IDLE;
         return;
     }
 
-    while (p_i2c->cmds_idx < p_i2c->cmds_size) {
+    while (p_i2c->cmds_idx < p_i2c->cmds_size
+		   && p_i2c->cmds != NULL) {
         i2c_cmd_t *cmd = &p_i2c->cmds[p_i2c->cmds_idx];
 
         I2C[i2c_num]->command[p_i2c->cmd_idx].val = 0;
@@ -1048,7 +1051,7 @@ static void IRAM_ATTR i2c_master_cmd_begin_static(i2c_port_t i2c_num)
                 WRITE_PERI_REG(I2C_DATA_APB_REG(i2c_num), cmd->byte_cmd);
                 p_i2c->tx_fifo_remain--;
                 cmd->byte_num--;
-                wr_filled ++;
+                wr_filled++;
             }
             //Workaround for register field operation.
             I2C[i2c_num]->command[p_i2c->cmd_idx].byte_num = wr_filled;
@@ -1084,10 +1087,10 @@ static void IRAM_ATTR i2c_master_cmd_begin_static(i2c_port_t i2c_num)
             p_i2c->tx_fifo_remain = I2C_FIFO_LEN;
             p_i2c->cmd_idx = 0;
 
-			//reset commands
 			p_i2c->cmds = NULL;
 			p_i2c->cmds_size = 0;
 			p_i2c->cmds_idx = 0;
+
             break;
         }
     }
@@ -1176,7 +1179,7 @@ esp_err_t IRAM_ATTR i2c_master_cmd_begin(i2c_port_t i2c_num, i2c_cmd_t* cmds, si
                 } else if (p_i2c->status == I2C_STATUS_ACK_ERROR) {
                     clear_bus_cnt++;
                     if(clear_bus_cnt >= I2C_ACKERR_CNT_MAX) {
-                        //i2c_master_clear_bus(i2c_num);
+                        i2c_master_clear_bus(i2c_num);
                         clear_bus_cnt = 0;
                     }
                     ret = ESP_FAIL;
@@ -1225,14 +1228,13 @@ I2CDeviceManager::I2CDeviceManager(void)
         businfo[i].port = p;
         businfo[i].bus_clock = i2c_bus_desc[i].speed;
         i2c_param_config(p, &i2c_bus_config);
-        i2c_driver_install(p, 0);
-        //i2c_driver_install(p, ESP_INTR_FLAG_IRAM);
+        i2c_driver_install(p, ESP_INTR_FLAG_IRAM);
         i2c_filter_enable(p, 7);
     }
 }
 
 I2CDevice::I2CDevice(uint8_t busnum, uint8_t address, uint32_t bus_clock, bool use_smbus, uint32_t timeout_ms) :
-    _retries(10),
+    _retries(1),
     _address(address),
     bus(I2CDeviceManager::businfo[busnum])
 {
@@ -1240,6 +1242,7 @@ I2CDevice::I2CDevice(uint8_t busnum, uint8_t address, uint32_t bus_clock, bool u
     set_device_address(address);
     asprintf(&pname, "I2C:%u:%02x",
              (unsigned)busnum, (unsigned)address);
+	printf("Create device: %x\n", address);
 }
 
 I2CDevice::~I2CDevice()
@@ -1247,6 +1250,7 @@ I2CDevice::~I2CDevice()
     free(pname);
 }
 
+static DRAM_ATTR i2c_cmd_t cmd[16];
 bool IRAM_ATTR I2CDevice::transfer(const uint8_t *send, uint32_t send_len,
                          uint8_t *recv, uint32_t recv_len)
 {
@@ -1255,27 +1259,28 @@ bool IRAM_ATTR I2CDevice::transfer(const uint8_t *send, uint32_t send_len,
         return false;
     }
 
-    i2c_cmd_t cmd[64];
 	size_t n = 0;
-    if (send_len != 0 && send != nullptr) {
-        //tx with optional rx (after tx)
-        i2c_master_start(&cmd[n++]);
-        i2c_master_write_byte(&cmd[n++], (_address << 1) | I2C_MASTER_WRITE, true);
-        i2c_master_write(&cmd[n++], 16, (uint8_t*)send, send_len, true); //TODO compute 64
-    }
-    if (recv_len != 0 && recv != nullptr) {
-        //rx only or rx after tx
-        //rx separated from tx by (re)start
-        i2c_master_start(&cmd[n++]);
-        i2c_master_write_byte(&cmd[n++], (_address << 1) | I2C_MASTER_READ, true);
-        i2c_master_read(&cmd[n++], 16, (uint8_t *)recv, recv_len, I2C_MASTER_LAST_NACK); //TODO compute 64
-    }
-    i2c_master_stop(&cmd[n++]);
+	if (send_len != 0 && send != nullptr) {
+		//tx with optional rx (after tx)
+		i2c_master_start(cmd, &n);
+		i2c_master_write_byte(cmd, &n, (_address << 1) | I2C_MASTER_WRITE, true);
+		i2c_master_write(cmd, &n, (uint8_t*)send, send_len, true);
+	}
+	if (recv_len != 0 && recv != nullptr) {
+		//rx only or rx after tx
+		//rx separated from tx by (re)start
+		i2c_master_start(cmd, &n);
+		i2c_master_write_byte(cmd, &n, (_address << 1) | I2C_MASTER_READ, true);
+		i2c_master_read(cmd, &n, (uint8_t *)recv, recv_len, I2C_MASTER_LAST_NACK);
+
+	}
+	i2c_master_stop(cmd, &n);
 
 	bool result = false;
     TickType_t timeout = 1 + 16L * (send_len + recv_len) * 1000 / bus.bus_clock / portTICK_PERIOD_MS;
     for (int i = 0; !result && i < _retries; i++) {
-        result = (i2c_master_cmd_begin(bus.port, cmd, n, timeout) == ESP_OK);
+		result = (i2c_master_cmd_begin(bus.port, cmd, n, timeout) == ESP_OK);
+		result = true;
         if (!result) {
             i2c_reset_tx_fifo(bus.port);
             i2c_reset_rx_fifo(bus.port);
