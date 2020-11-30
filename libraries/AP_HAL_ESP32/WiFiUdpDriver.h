@@ -20,6 +20,7 @@
 #include <AP_HAL_ESP32/AP_HAL_ESP32.h>
 #include <AP_HAL_ESP32/Semaphores.h>
 #include "lwip/sockets.h"
+#include "esp_event.h"
 
 
 class ESP32::WiFiUdpDriver : public AP_HAL::UARTDriver {
@@ -43,7 +44,7 @@ public:
 
     uint32_t bw_in_kilobytes_per_second() const override
     {
-        return 1000;
+        return 10000;
     }
 
 
@@ -65,7 +66,6 @@ private:
     ConnectionState _state;
 
     int accept_socket;
-    struct sockaddr_in client_addr;
 
     void *_wifi_task_handle;
     void initialize_wifi();
