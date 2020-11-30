@@ -41,29 +41,29 @@ extern const AP_HAL::HAL& hal;
 
 WiFiUdpDriver::WiFiUdpDriver()
 {
-	_state = NOT_INITIALIZED;
-	accept_socket = -1;
+    _state = NOT_INITIALIZED;
+    accept_socket = -1;
 }
 
 void WiFiUdpDriver::begin(uint32_t b)
 {
-	begin(b, 0, 0);
+    begin(b, 0, 0);
 }
 
 void WiFiUdpDriver::begin(uint32_t b, uint16_t rxS, uint16_t txS)
 {
-	if (_state == NOT_INITIALIZED) {
-		initialize_wifi();
-		xTaskCreate(_wifi_thread, "APM_WIFI", Scheduler::WIFI_SS, this, Scheduler::WIFI_PRIO, &_wifi_task_handle);
-		_readbuf.set_size(RX_BUF_SIZE);
-		_writebuf.set_size(TX_BUF_SIZE);
-		_state = INITIALIZED;
-	}
+    if (_state == NOT_INITIALIZED) {
+        initialize_wifi();
+        xTaskCreate(_wifi_thread, "APM_WIFI", Scheduler::WIFI_SS, this, Scheduler::WIFI_PRIO, &_wifi_task_handle);
+        _readbuf.set_size(RX_BUF_SIZE);
+        _writebuf.set_size(TX_BUF_SIZE);
+        _state = INITIALIZED;
+    }
 }
 
 void WiFiUdpDriver::end()
 {
-	//TODO
+    //TODO
 }
 
 void WiFiUdpDriver::flush()
@@ -72,169 +72,174 @@ void WiFiUdpDriver::flush()
 
 bool WiFiUdpDriver::is_initialized()
 {
-	return true;
+    return true;
 }
 
 void WiFiUdpDriver::set_blocking_writes(bool blocking)
 {
-	//blocking writes do not used anywhere
+    //blocking writes do not used anywhere
 }
 
 bool WiFiUdpDriver::tx_pending()
 {
-	return (_writebuf.available() > 0);
+    return (_writebuf.available() > 0);
 }
 
 uint32_t WiFiUdpDriver::available()
 {
-	return _readbuf.available();
+    return _readbuf.available();
 }
 
 uint32_t WiFiUdpDriver::txspace()
 {
-	int result =  _writebuf.space();
-	result -= TX_BUF_SIZE / 4;
-	return MAX(result, 0);
+    int result =  _writebuf.space();
+    result -= TX_BUF_SIZE / 4;
+    return MAX(result, 0);
 }
 
 int16_t WiFiUdpDriver::read()
 {
-	uint8_t byte;
-	if (!_readbuf.read_byte(&byte)) {
-		return -1;
-	}
-	return byte;
+    uint8_t byte;
+    if (!_readbuf.read_byte(&byte)) {
+        return -1;
+    }
+    return byte;
 }
 
 bool WiFiUdpDriver::start_listen()
 {
-	accept_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
-	if (accept_socket < 0) {
-		accept_socket = -1;
-		return false;
-	}
-	int opt;
-	setsockopt(accept_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-	struct sockaddr_in destAddr;
-	destAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	destAddr.sin_family = AF_INET;
-	destAddr.sin_port = htons(UDP_PORT);
-	int err = bind(accept_socket, (struct sockaddr *)&destAddr, sizeof(destAddr));
-	if (err != 0) {
-		close(accept_socket);
-		accept_socket = 0;
-		return false;
-	}
-	//memset(&client_addr, 0, sizeof(client_addr));
-	fcntl(accept_socket, F_SETFL, O_NONBLOCK);
+    accept_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if (accept_socket < 0) {
+        accept_socket = -1;
+        return false;
+    }
+    int opt;
+    setsockopt(accept_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    struct sockaddr_in destAddr;
+    destAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    destAddr.sin_family = AF_INET;
+    destAddr.sin_port = htons(UDP_PORT);
+    int err = bind(accept_socket, (struct sockaddr *)&destAddr, sizeof(destAddr));
+    if (err != 0) {
+        close(accept_socket);
+        accept_socket = 0;
+        return false;
+    }
+    //memset(&client_addr, 0, sizeof(client_addr));
+    fcntl(accept_socket, F_SETFL, O_NONBLOCK);
 
-	return true;
+    return true;
 
 }
 
 bool WiFiUdpDriver::read_all()
 {
-	struct sockaddr_in client_addr;
-	socklen_t socklen = sizeof(client_addr);
-	int count = recvfrom(accept_socket , _buffer, sizeof(_buffer) - 1, 0, (struct sockaddr *)&client_addr, &socklen);
-	if (count > 0) {
-		_readbuf.write(_buffer, count);
-		_more_data = true;
-	} else {
-		return false;
-	}
-	return true;
+    struct sockaddr_in client_addr;
+    socklen_t socklen = sizeof(client_addr);
+    int count = recvfrom(accept_socket , _buffer, sizeof(_buffer) - 1, 0, (struct sockaddr *)&client_addr, &socklen);
+    if (count > 0) {
+        _readbuf.write(_buffer, count);
+        _more_data = true;
+    } else {
+        return false;
+    }
+    return true;
 }
 
 bool WiFiUdpDriver::write_data()
 {
 
-	_write_mutex.take_blocking();
-	struct sockaddr_in dest_addr;
-	dest_addr.sin_addr.s_addr = inet_addr("192.168.4.255");
-	dest_addr.sin_family = AF_INET;
-	dest_addr.sin_port = htons(UDP_PORT);
-	int count = _writebuf.peekbytes(_buffer, sizeof(_buffer));
-	if (count > 0) {
-		count = sendto(accept_socket, _buffer, count, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-		if (count > 0) {
-			_writebuf.advance(count);
-			_more_data = true;
-		} else {
-			_write_mutex.give();
-			return false;
-		}
-	}
-	_write_mutex.give();
-	return true;
+    _write_mutex.take_blocking();
+    struct sockaddr_in dest_addr;
+    dest_addr.sin_addr.s_addr = inet_addr("192.168.4.255");
+    dest_addr.sin_family = AF_INET;
+    dest_addr.sin_port = htons(UDP_PORT);
+    int count = _writebuf.peekbytes(_buffer, sizeof(_buffer));
+    if (count > 0) {
+        count = sendto(accept_socket, _buffer, count, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+        if (count > 0) {
+            _writebuf.advance(count);
+            _more_data = true;
+        } else {
+            _write_mutex.give();
+            return false;
+        }
+    }
+    _write_mutex.give();
+    return true;
 }
 
 void WiFiUdpDriver::initialize_wifi()
 {
-	esp_event_loop_init(nullptr, nullptr);
+    esp_event_loop_init(nullptr, nullptr);
 
-	tcpip_adapter_init();
-	nvs_flash_init();
+    tcpip_adapter_init();
+    nvs_flash_init();
 
-	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-	esp_wifi_init(&cfg);
-	esp_wifi_set_storage(WIFI_STORAGE_FLASH);
-	wifi_config_t wifi_config;
-	memset(&wifi_config, 0, sizeof(wifi_config));
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    esp_wifi_init(&cfg);
+    esp_wifi_set_storage(WIFI_STORAGE_FLASH);
+    wifi_config_t wifi_config;
+    memset(&wifi_config, 0, sizeof(wifi_config));
 #ifdef WIFI_SSID
-	strcpy((char *)wifi_config.ap.ssid, WIFI_SSID);
+    strcpy((char *)wifi_config.ap.ssid, WIFI_SSID);
 #else
-	strcpy((char *)wifi_config.ap.ssid, "ardupilot");
+    strcpy((char *)wifi_config.ap.ssid, "ardupilot");
 #endif
 #ifdef WIFI_PWD
-	strcpy((char *)wifi_config.ap.password, WIFI_PWD);
+    strcpy((char *)wifi_config.ap.password, WIFI_PWD);
 #else
-	strcpy((char *)wifi_config.ap.password, "ardupilot1");
+    strcpy((char *)wifi_config.ap.password, "ardupilot1");
 #endif
-	wifi_config.ap.authmode = WIFI_AUTH_WPA_WPA2_PSK;
-	wifi_config.ap.max_connection = 4;
-	esp_wifi_set_mode(WIFI_MODE_AP);
-	esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config);
-	esp_wifi_start();
+    wifi_config.ap.authmode = WIFI_AUTH_WPA_WPA2_PSK;
+    wifi_config.ap.max_connection = 4;
+    esp_wifi_set_mode(WIFI_MODE_AP);
+    esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config);
+    esp_wifi_start();
 }
 
 size_t WiFiUdpDriver::write(uint8_t c)
 {
-	return write(&c,1);
+    return write(&c,1);
 }
 
 size_t WiFiUdpDriver::write(const uint8_t *buffer, size_t size)
 {
-	if (!_write_mutex.take_nonblocking()) {
-		return 0;
-	}
-	size_t ret = _writebuf.write(buffer, size);
-	_write_mutex.give();
-	return ret;
+    if (!_write_mutex.take_nonblocking()) {
+        return 0;
+    }
+    size_t ret = _writebuf.write(buffer, size);
+    _write_mutex.give();
+    return ret;
 }
 
 void WiFiUdpDriver::_wifi_thread(void *arg)
 {
-	WiFiUdpDriver *self = (WiFiUdpDriver *) arg;
-	::printf("Start UDP\n");
-	if (!self->start_listen()) {
-		vTaskDelete(nullptr);
-		::printf("DELETE UDP\n");
-	}
-	::printf("LISTENING udp\n");
-	while (true) {
-		self->_more_data = false;
-		if (!self->read_all()) {
-		}
-		if (!self->write_data()) {
-		}
-		if (!self->_more_data) {
-			hal.scheduler->delay_microseconds(1000);
-		}
-	}
+    WiFiUdpDriver *self = (WiFiUdpDriver *) arg;
+    ::printf("Start UDP\n");
+    if (!self->start_listen()) {
+        vTaskDelete(nullptr);
+        ::printf("DELETE UDP\n");
+    }
+    ::printf("LISTENING udp\n");
+    while (true) {
+        struct timeval tv = {
+            .tv_sec = 0,
+            .tv_usec = 1000,
+        };
+        fd_set rfds;
+        FD_ZERO(&rfds);
+        FD_SET(self->accept_socket, &rfds);
+
+        int s = select(self->accept_socket + 1, &rfds, NULL, NULL, &tv);
+        if (s > 0 && FD_ISSET(self->accept_socket, &rfds)) {
+            self->read_all();
+        }
+        self->write_data();
+    }
 }
 
 bool WiFiUdpDriver::discard_input()
 {
-	return false;
+    return false;
 }
