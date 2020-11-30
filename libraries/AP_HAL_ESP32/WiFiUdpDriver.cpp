@@ -54,6 +54,9 @@ void WiFiUdpDriver::begin(uint32_t b, uint16_t rxS, uint16_t txS)
 {
     if (_state == NOT_INITIALIZED) {
         initialize_wifi();
+        if (!start_listen())
+            return;
+
         xTaskCreate(_wifi_thread, "APM_WIFI", Scheduler::WIFI_SS, this, Scheduler::WIFI_PRIO, &_wifi_task_handle);
         _readbuf.set_size(RX_BUF_SIZE);
         _writebuf.set_size(TX_BUF_SIZE);
@@ -99,10 +102,16 @@ uint32_t WiFiUdpDriver::txspace()
 
 int16_t WiFiUdpDriver::read()
 {
+    if (!_read_mutex.take_nonblocking()) {
+        return 0;
+    }
+
     uint8_t byte;
     if (!_readbuf.read_byte(&byte)) {
         return -1;
     }
+
+    _read_mutex.give();
     return byte;
 }
 
@@ -134,15 +143,17 @@ bool WiFiUdpDriver::start_listen()
 
 bool WiFiUdpDriver::read_all()
 {
+    _read_mutex.take_blocking();
     struct sockaddr_in client_addr;
     socklen_t socklen = sizeof(client_addr);
     int count = recvfrom(accept_socket , _buffer, sizeof(_buffer) - 1, 0, (struct sockaddr *)&client_addr, &socklen);
     if (count > 0) {
         _readbuf.write(_buffer, count);
-        _more_data = true;
+        _read_mutex.give();
     } else {
         return false;
     }
+    _read_mutex.give();
     return true;
 }
 
@@ -159,7 +170,6 @@ bool WiFiUdpDriver::write_data()
         count = sendto(accept_socket, _buffer, count, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
         if (count > 0) {
             _writebuf.advance(count);
-            _more_data = true;
         } else {
             _write_mutex.give();
             return false;
@@ -216,12 +226,6 @@ size_t WiFiUdpDriver::write(const uint8_t *buffer, size_t size)
 void WiFiUdpDriver::_wifi_thread(void *arg)
 {
     WiFiUdpDriver *self = (WiFiUdpDriver *) arg;
-    ::printf("Start UDP\n");
-    if (!self->start_listen()) {
-        vTaskDelete(nullptr);
-        ::printf("DELETE UDP\n");
-    }
-    ::printf("LISTENING udp\n");
     while (true) {
         struct timeval tv = {
             .tv_sec = 0,
