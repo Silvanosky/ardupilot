@@ -44,13 +44,11 @@ public:
 
     uint32_t bw_in_kilobytes_per_second() const override
     {
-        return 10000;
+        return 1000;
     }
 
 
 	bool discard_input() override;
-
-    bool _more_data;
 private:
     enum ConnectionState {
         NOT_INITIALIZED,
@@ -63,6 +61,7 @@ private:
     ByteBuffer _readbuf{0};
     ByteBuffer _writebuf{0};
     Semaphore _write_mutex;
+    Semaphore _read_mutex;
     ConnectionState _state;
 
     int accept_socket;
