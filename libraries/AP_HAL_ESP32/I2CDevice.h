@@ -24,7 +24,13 @@
 #include "Scheduler.h"
 #include "DeviceBus.h"
 
+
+#include "soc/timer_group_struct.h"
+#include "soc/timer_group_reg.h"
+
+#include "i2c_sw.h"
 #include "driver/i2c.h"
+
 
 namespace ESP32 {
 
@@ -35,6 +41,7 @@ struct I2CBusDesc {
     uint32_t speed;
     bool internal;
 };
+
 
 class I2CBus : public  DeviceBus {
 public:
