@@ -40,7 +40,9 @@ public:
     void     register_timer_failsafe(AP_HAL::Proc, uint32_t period_us) override;
     void     reboot(bool hold_in_bootloader) override;
     bool     in_main_thread() const override;
-    void     system_initialized() override;
+    // check and set the startup state
+    void     set_system_initialized() override;
+    bool     is_system_initialized() override;
 
     void     print_stats(void) ; 
     uint16_t get_loop_rate_hz(void);

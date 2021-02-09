@@ -971,7 +971,7 @@ bool AP_Logger_File::io_thread_alive() const
     }
     // if the io thread hasn't had a heartbeat in a while then it is
     // considered dead. Three seconds is enough time for a sdcard remount.
-#if HAL_BOARD_NAME == "ESP32"
+#if CONFIG_HAL_BOARD == HAL_BOARD_ESP32
     uint32_t timeout_ms = 10000;
 #else
     uint32_t timeout_ms = 3000;

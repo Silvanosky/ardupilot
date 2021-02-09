@@ -225,7 +225,7 @@ bool Scheduler::in_main_thread() const
     return _main_task_handle == xTaskGetCurrentTaskHandle();
 }
 
-void Scheduler::system_initialized()
+void Scheduler::set_system_initialized()
 {
 #ifdef SCHEDDEBUG
 printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
@@ -235,6 +235,11 @@ printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
     }
 
     _initialized = true;
+}
+
+bool Scheduler::is_system_initialized()
+{
+    return _initialized;
 }
 
 void Scheduler::_timer_thread(void *arg)
@@ -414,10 +419,10 @@ printf("%s:%d initialised\n", __PRETTY_FUNCTION__, __LINE__);
 #endif
     while (true) {
         sched->delay_microseconds(1000);
-        hal.uartA->_timer_tick();
-        hal.uartB->_timer_tick();
-        hal.uartC->_timer_tick();
-        hal.uartD->_timer_tick();
+        hal.serial(0)->_timer_tick();
+        hal.serial(1)->_timer_tick();
+        hal.serial(2)->_timer_tick();
+        hal.serial(3)->_timer_tick();
         hal.console->_timer_tick();
     }
 }
@@ -452,11 +457,11 @@ void IRAM_ATTR Scheduler::_main_thread(void *arg)
 printf("%s:%d start\n", __PRETTY_FUNCTION__, __LINE__);
 #endif
     Scheduler *sched = (Scheduler *)arg;
-    hal.uartA->begin(115200);
-    hal.uartB->begin(57600);
-    hal.uartC->begin(57600);
-    hal.uartC->begin(921600);
-    hal.uartD->begin(115200);
+    hal.serial(0)->begin(115200);
+    hal.serial(1)->begin(57600);
+    hal.serial(2)->begin(57600);
+    //hal.uartC->begin(921600);
+    hal.serial(3)->begin(115200);
 
 #ifndef HAL_DISABLE_ADC_DRIVER
     hal.analogin->init();
@@ -465,7 +470,7 @@ printf("%s:%d start\n", __PRETTY_FUNCTION__, __LINE__);
 
     sched->callbacks->setup();
 
-    sched->system_initialized();
+    sched->set_system_initialized();
 
 #ifdef SCHEDDEBUG
 printf("%s:%d initialised\n", __PRETTY_FUNCTION__, __LINE__);
