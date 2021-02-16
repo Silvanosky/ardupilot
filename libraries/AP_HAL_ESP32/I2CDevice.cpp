@@ -31,14 +31,13 @@ I2CBus I2CDeviceManager::businfo[ARRAY_SIZE(i2c_bus_desc)];
 I2CDeviceManager::I2CDeviceManager(void)
 {
     for (uint8_t i=0; i<ARRAY_SIZE(i2c_bus_desc); i++) {
-        i2c_config_t i2c_bus_config = {
-            .mode = I2C_MODE_MASTER,
-            .sda_io_num = i2c_bus_desc[i].sda,
-            .sda_pullup_en = GPIO_PULLUP_ENABLE,
-            .scl_io_num = i2c_bus_desc[i].scl,
-            .scl_pullup_en = GPIO_PULLUP_ENABLE,
-            i2c_bus_desc[i].speed
-        };
+        i2c_config_t i2c_bus_config;
+        i2c_bus_config.mode = I2C_MODE_MASTER;
+        i2c_bus_config.sda_io_num = i2c_bus_desc[i].sda;
+        i2c_bus_config.scl_io_num = i2c_bus_desc[i].scl;
+        i2c_bus_config.sda_pullup_en = GPIO_PULLUP_ENABLE;
+        i2c_bus_config.scl_pullup_en = GPIO_PULLUP_ENABLE;
+        i2c_bus_config.master.clk_speed = i2c_bus_desc[i].speed;
         i2c_port_t p = i2c_bus_desc[i].port;
         businfo[i].port = p;
         businfo[i].bus_clock = i2c_bus_desc[i].speed;

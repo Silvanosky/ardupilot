@@ -60,12 +60,3 @@ const AP_HAL::HAL& AP_HAL::get_HAL()
     static const HAL_ESP32 hal;
     return hal;
 }
-
-extern "C" int main(int argc, char *argv[]);
-
-extern "C" void app_main()
-{
-    mount_sdcard();
-    main(0, nullptr);
-}
-
