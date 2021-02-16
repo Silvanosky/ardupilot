@@ -43,24 +43,23 @@ void SoftSigReaderRMT::init()
 	printf("%s\n",__PRETTY_FUNCTION__);
 
 	// in case the peripheral was left in a bad state, such as reporting full buffers, this can help clear it, and can be called repeatedly if need be.
-	periph_module_reset(PERIPH_RMT_MODULE);
+	//periph_module_reset(PERIPH_RMT_MODULE);
 
 
-    rmt_config_t config = {
-        .rmt_mode = RMT_MODE_RX,
-        .channel = RMT_CHANNEL_0,
-        .clk_div = RMT_CLK_DIV,
+    rmt_config_t config;
+    config.rmt_mode = RMT_MODE_RX;
+    config.channel = RMT_CHANNEL_0;
 #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_ESP32_ICARUS
-        .gpio_num = (gpio_num_t)36,
+    config.gpio_num = (gpio_num_t)36;
 #endif
 #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_ESP32_DIY
-        .gpio_num = (gpio_num_t)4,
+    config.gpio_num = (gpio_num_t)4;
 #endif
 #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_ESP32_BUZZ
-        .gpio_num = (gpio_num_t)4,
+    config.gpio_num = (gpio_num_t)4;
 #endif
-        .mem_block_num = 1
-    };
+    config.clk_div = RMT_CLK_DIV;
+    config.mem_block_num = 1;
     config.rx_config.filter_en = true;
     config.rx_config.filter_ticks_thresh = 100;
     config.rx_config.idle_threshold = PPM_IMEOUT_US * (RMT_TICK_US);
