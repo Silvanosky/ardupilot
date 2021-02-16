@@ -348,7 +348,7 @@ class Board:
 
 Board = BoardMeta('Board', Board.__bases__, dict(Board.__dict__))
 
-def add_dynamic_boards():
+def add_dynamic_boards_chibios():
     '''add boards based on existance of hwdef.dat in subdirectories for ChibiOS'''
     dirname, dirlist, filenames = next(os.walk('libraries/AP_HAL_ChibiOS/hwdef'))
     for d in dirlist:
@@ -358,8 +358,19 @@ def add_dynamic_boards():
         if os.path.exists(hwdef):
             newclass = type(d, (chibios,), {'name': d})
 
+def add_dynamic_boards_esp32():
+    '''add boards based on existance of hwdef.dat in subdirectories for ESP32'''
+    dirname, dirlist, filenames = next(os.walk('libraries/AP_HAL_ESP32/hwdef'))
+    for d in dirlist:
+        if d in _board_classes.keys():
+            continue
+        hwdef = os.path.join(dirname, d, 'hwdef.dat')
+        if os.path.exists(hwdef):
+            newclass = type(d, (esp32,), {'name': d})
+
 def get_boards_names():
-    add_dynamic_boards()
+    add_dynamic_boards_chibios()
+    add_dynamic_boards_esp32()
 
     return sorted(list(_board_classes.keys()), key=str.lower)
 
@@ -579,6 +590,7 @@ class esp32(Board):
 
         env.DEFINES.update(
             ENABLE_HEAP = 0,
+            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_ESP32_DIY',
         )
 
 
@@ -616,30 +628,40 @@ class esp32(Board):
         #if cfg.options.enable_profile:
         #    env.CXXFLAGS += ['-pg',
         #                     '-DENABLE_PROFILE=1']
+    def pre_build(self, bld):
+        '''pre-build hook that gets called before dynamic sources'''
+        from waflib.Context import load_tool
+        module = load_tool('esp32', [], with_sys_path=True)
+        fun = getattr(module, 'pre_build', None)
+        if fun:
+            fun(bld)
+        super(esp32, self).pre_build(bld)
+
+
     def build(self, bld):
         super(esp32, self).build(bld)
         bld.load('esp32')
 
-class esp32buzz(esp32):
-    def configure_env(self, cfg, env):
-        super(esp32buzz, self).configure_env(cfg, env)
-        env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_ESP32_BUZZ'
-        )
+#class esp32buzz(esp32):
+#    def configure_env(self, cfg, env):
+#        super(esp32buzz, self).configure_env(cfg, env)
+#        env.DEFINES.update(
+#            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_ESP32_BUZZ'
+#        )
 
-class esp32diy(esp32):
-    def configure_env(self, cfg, env):
-        super(esp32diy, self).configure_env(cfg, env)
-        env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_ESP32_DIY'
-        )
+#class esp32diy(esp32):
+#    def configure_env(self, cfg, env):
+#        super(esp32diy, self).configure_env(cfg, env)
+#        env.DEFINES.update(
+#            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_ESP32_DIY'
+#        )
 
-class esp32icarus(esp32):
-    def configure_env(self, cfg, env):
-        super(esp32icarus, self).configure_env(cfg, env)
-        env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_ESP32_ICARUS'
-        )
+#class esp32icarus(esp32):
+#    def configure_env(self, cfg, env):
+#        super(esp32icarus, self).configure_env(cfg, env)
+#        env.DEFINES.update(
+#            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_ESP32_ICARUS'
+#        )
 
 
 class chibios(Board):
