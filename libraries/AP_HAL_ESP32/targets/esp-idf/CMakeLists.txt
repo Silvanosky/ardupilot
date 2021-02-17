@@ -26,8 +26,23 @@ idf_build_process(esp32
     SDKCONFIG ${CMAKE_CURRENT_LIST_DIR}/sdkconfig
     BUILD_DIR ${CMAKE_BINARY_DIR})
 
-set(elf_file ${CMAKE_PROJECT_NAME}.bin)
+set(elf_file ardupilot.bin)
+
 add_executable(${elf_file} main.c)
+
+target_link_libraries(${elf_file} "${ARDUPILOT_BIN}/libarduplane.a")
+target_link_libraries(${elf_file} "${ARDUPILOT_LIB}/libArduPlane_libs.a")
+
+target_link_libraries(${elf_file} "${ARDUPILOT_BIN}/libarducopter.a")
+target_link_libraries(${elf_file} "${ARDUPILOT_LIB}/libArduCopter_libs.a")
+
+target_link_libraries(${elf_file} "${ARDUPILOT_BIN}/libardurover.a")
+target_link_libraries(${elf_file} "${ARDUPILOT_LIB}/libRover_libs.a")
+
+target_link_libraries(${elf_file} "${ARDUPILOT_BIN}/libardusub.a")
+target_link_libraries(${elf_file} "${ARDUPILOT_LIB}/libArduSub_libs.a")
+
+
 
 add_custom_target(showinc ALL
         COMMAND echo -e
@@ -39,7 +54,7 @@ add_custom_target(showinc ALL
 )
 
 #Find files name lib to link
-MACRO(SUBLINK target curdir)
+function(SUBLINK target curdir)
   FILE(GLOB children RELATIVE ${curdir} ${curdir}/*)
   FOREACH(child ${children})
     IF(NOT IS_DIRECTORY ${curdir}/${child})
@@ -48,11 +63,10 @@ MACRO(SUBLINK target curdir)
       target_link_libraries(${target} "${PATH}")
     ENDIF()
   ENDFOREACH()
-ENDMACRO()
+endfunction()
 
-SUBLINK(${elf_file} ${ARDUPILOT_BIN})
-SUBLINK(${elf_file} ${ARDUPILOT_LIB})
-
+#SUBLINK(${elf_file} ${ARDUPILOT_BIN})
+#SUBLINK(${elf_file} ${ARDUPILOT_LIB})
 # Link the static libraries to the executable
 target_link_libraries(${elf_file}
                 idf::esp32

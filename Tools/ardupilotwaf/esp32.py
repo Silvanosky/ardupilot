@@ -67,24 +67,26 @@ def configure(cfg):
 
     env.append_value('GIT_SUBMODULES', 'esp_idf')
 
-esp_idf = {}
+
 def pre_build(self):
     """Configure esp-idf as lib target"""
     lib_vars = OrderedDict()
     lib_vars['ARDUPILOT_LIB'] = self.bldnode.find_or_declare('lib/').abspath()
     lib_vars['ARDUPILOT_BIN'] = self.bldnode.find_or_declare('lib/bin').abspath()
 
-    esp_idf[0] = self.cmake(
+    vehicle = getattr(self, 'ap_program', None)
+    print(self.bldnode.link_task.env
+)
+
+    esp_idf = self.cmake(
             name='esp-idf',
             cmake_vars=lib_vars,
             cmake_src='libraries/AP_HAL_ESP32/targets/esp-idf',
             cmake_bld='esp-idf_build',
             )
 
-    esp_idf_showinc = esp_idf[0].build('showinc', target='esp-idf_build/includes.list')
+    esp_idf_showinc = esp_idf.build('showinc', target='esp-idf_build/includes.list')
     esp_idf_showinc.post()
-
-    esp_idf[0].build('', target='esp-idf_build/ardupilot.bin')
 
     from waflib import Task
     class load_generated_includes(Task.Task):
@@ -104,14 +106,11 @@ def pre_build(self):
 @feature('esp32_ap_program')
 @after_method('process_source')
 def esp32_firmware(self):
-    #self.link_task.always_run = True
+    self.link_task.always_run = True
 
-    print("LLLLLLLLLL")
-    link_output = self.link_task.outputs[0]
-    bin_target = self.bld.bldnode.find_or_declare('bin/' + link_output.change_ext('.bin').name)
-    apj_target = self.bld.bldnode.find_or_declare('bin/' + link_output.change_ext('.apj').name)
-
-    esp_idf[0].build('', target='esp-idf_build/ardupilot.bin')
+    esp_idf = self.bld.cmake('esp-idf')
+    build = esp_idf.build('', target='esp-idf_build/ardupilot.bin')
+    build.post()
 
     """tmp_dir = self.bld.bldnode.make_node('esp_idf')
 
