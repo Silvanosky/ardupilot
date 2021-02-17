@@ -30,19 +30,17 @@ set(elf_file ardupilot.bin)
 
 add_executable(${elf_file} main.c)
 
-target_link_libraries(${elf_file} "${ARDUPILOT_BIN}/libarduplane.a")
-target_link_libraries(${elf_file} "${ARDUPILOT_LIB}/libArduPlane_libs.a")
+#target_link_libraries(${elf_file} "${ARDUPILOT_BIN}/libarduplane.a")
+#target_link_libraries(${elf_file} "${ARDUPILOT_LIB}/libArduPlane_libs.a")
 
-target_link_libraries(${elf_file} "${ARDUPILOT_BIN}/libarducopter.a")
-target_link_libraries(${elf_file} "${ARDUPILOT_LIB}/libArduCopter_libs.a")
+#target_link_libraries(${elf_file} "${ARDUPILOT_BIN}/libarducopter.a")
+#target_link_libraries(${elf_file} "${ARDUPILOT_LIB}/libArduCopter_libs.a")
 
-target_link_libraries(${elf_file} "${ARDUPILOT_BIN}/libardurover.a")
-target_link_libraries(${elf_file} "${ARDUPILOT_LIB}/libRover_libs.a")
+#target_link_libraries(${elf_file} "${ARDUPILOT_BIN}/libardurover.a")
+#target_link_libraries(${elf_file} "${ARDUPILOT_LIB}/libRover_libs.a")
 
-target_link_libraries(${elf_file} "${ARDUPILOT_BIN}/libardusub.a")
-target_link_libraries(${elf_file} "${ARDUPILOT_LIB}/libArduSub_libs.a")
-
-
+#target_link_libraries(${elf_file} "${ARDUPILOT_BIN}/libardusub.a")
+#target_link_libraries(${elf_file} "${ARDUPILOT_LIB}/libArduSub_libs.a")
 
 add_custom_target(showinc ALL
         COMMAND echo -e
@@ -65,8 +63,13 @@ function(SUBLINK target curdir)
   ENDFOREACH()
 endfunction()
 
-#SUBLINK(${elf_file} ${ARDUPILOT_BIN})
-#SUBLINK(${elf_file} ${ARDUPILOT_LIB})
+IF (DEFINED ARDUPILOT_BIN)
+    SUBLINK(${elf_file} ${ARDUPILOT_BIN})
+ENDIF()
+IF (DEFINED ARDUPILOT_LIB)
+    SUBLINK(${elf_file} ${ARDUPILOT_LIB})
+ENDIF()
+
 # Link the static libraries to the executable
 target_link_libraries(${elf_file}
                 idf::esp32
