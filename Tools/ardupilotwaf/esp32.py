@@ -60,9 +60,13 @@ def configure(cfg):
 
 def pre_build(self):
     """Configure esp-idf as lib target"""
-
+    lib_vars = OrderedDict()
+    lib_vars['ARDUPILOT_CMD'] = self.cmd
+    lib_vars['ARDUPILOT_LIB'] = self.bldnode.find_or_declare('lib/').abspath()
+    lib_vars['ARDUPILOT_BIN'] = self.bldnode.find_or_declare('lib/bin').abspath()
     esp_idf = self.cmake(
             name='esp-idf',
+            cmake_vars=lib_vars,
             cmake_src='libraries/AP_HAL_ESP32/targets/esp-idf',
             cmake_bld='esp-idf_build',
             )
@@ -89,16 +93,12 @@ def pre_build(self):
 @after_method('process_source')
 def esp32_firmware(self):
     #self.link_task.always_run = True
-    lib_vars = OrderedDict()
-    lib_vars['ARDUPILOT_LIB'] = self.bld.bldnode.find_or_declare('lib/').abspath()
-    lib_vars['ARDUPILOT_BIN'] = self.bld.bldnode.find_or_declare('lib/bin').abspath()
-
     esp_idf = self.bld.cmake('esp-idf')
-    esp_idf.vars = lib_vars
-    esp_idf.config_task(self) #Reconfigure cmake to be able to list .a files
 
     build = esp_idf.build('', target='esp-idf_build/ardupilot.bin')
     build.post()
+
+    build.cmake_build_task.set_run_after(self.link_task)
 
     # tool that can update the default params in a .bin or .apj
     #self.default_params_task = self.create_task('set_default_parameters',
