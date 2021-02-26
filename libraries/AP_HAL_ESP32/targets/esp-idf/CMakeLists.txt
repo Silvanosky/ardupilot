@@ -30,6 +30,10 @@ set(elf_file ardupilot.bin)
 
 add_executable(${elf_file} main.c)
 
+if(NOT DEFINED ARDUPILOT_CMD)
+    set(ARDUPILOT_CMD "none")
+endif()
+
 IF(${ARDUPILOT_CMD} STREQUAL "plane")
     message("Building for plane")
     target_link_libraries(${elf_file} "${ARDUPILOT_BIN}/libarduplane.a")
