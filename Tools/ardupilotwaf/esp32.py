@@ -92,7 +92,7 @@ def pre_build(self):
 @feature('esp32_ap_program')
 @after_method('process_source')
 def esp32_firmware(self):
-    #self.link_task.always_run = True
+    self.link_task.always_run = True
     esp_idf = self.bld.cmake('esp-idf')
 
     build = esp_idf.build('', target='esp-idf_build/ardupilot.bin')
@@ -174,17 +174,6 @@ class set_default_parameters(Task.Task):
             print("Embedded params in .bin unchanged (probably already up-to-date)")
         else:
             print("Embedded params in .bin UPDATED")
-
-
-#class build_esp32_image_copter(Task.Task):
-#    '''build an esp32 image'''
-#    color='CYAN'
-#    run_str="export IDF_PATH=\"${IDF}\"; cd ${AP_HAL_COPTER}&&'${MAKE}' BATCH_BUILD=1"
-#    always_run = True
-#    def keyword(self):
-#        return "Generating (and building IDF)"
-#    def __str__(self):
-#        return self.outputs[0].path_from(self.generator.bld.bldnode)
 
   #      upload_tools = self.env.get_flat('UPLOAD_TOOLS')
   #      upload_port = self.generator.bld.options.upload_port
