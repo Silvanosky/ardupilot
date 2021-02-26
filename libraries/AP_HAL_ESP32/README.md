@@ -6,13 +6,17 @@
 
 ## Building instructions
 0. Build currently tested on linux
-1. Checkout this branch https://github.com/davidbuzz/ardupilot/tree/esp32_new
+1. Checkout this branch https://github.com/Silvanosky/ardupilot/tree/esp32_master_new_flat
 2. Use this to install ardupilot requirements:
 ```
 Tools/environment_install/install-prereqs-ubuntu.sh
 ```
+or
+```
+Tools/environment_install/install-prereqs-arch.sh
+```
 
-3. install esp-idf python deps, best to do it for both python 2 and 3: 
+3. install esp-idf python deps:
 
 ```
 # from: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/linux-setup.html
@@ -20,10 +24,12 @@ sudo apt-get install git wget flex bison gperf python python-pip python-setuptoo
 sudo apt-get install python3 python3-pip python3-setuptools
 sudo update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 
+#or
+sudo pacman -S --needed gcc git make flex bison gperf python-pip cmake ninja ccache dfu-util libusb
+
 
 cd ardupilot
-/usr/bin/python2 -m pip install --user -r modules/esp_idf/requirements.txt
-/usr/bin/python3 -m pip install --user -r modules/esp_idf/requirements.txt
+python3 -m pip install --user -r modules/esp_idf/requirements.txt
 cd modules/esp_idf
 ./install.sh
 unset IDF_PATH
@@ -47,37 +53,48 @@ Do NOT use "./waf build", it's broken right now.
 ```
 
 TIPS:
- -  we use toolchain and esp-idf from espressif , as a 'git submodule', so no need to preinstall etc. 
+ -  we use toolchain and esp-idf from espressif , as a 'git submodule', so no need to preinstall etc.
 https://docs.espressif.com/projects/esp-idf/en/latest/get-started/ -
  (note we currently use https://github.com/espressif/esp-idf/tree/release/v4.0 )
 
 
- -   if you get compile error/s to do with CONFIG... such as 
+ -   if you get compile error/s to do with CONFIG... such as
 in expansion of macro 'configSUPPORT_STATIC_ALLOCATION'
 warning: "CONFIG_SUPPORT_STATIC_ALLOCATION" is not defined
 
-this means your 'sdkconfig' file that the IDF relies on is perhaps a bit out of date or out of sync with your IDF.  
+this means your 'sdkconfig' file that the IDF relies on is perhaps a bit out of date or out of sync with your IDF.
 So double check you are using the correct IDF version ( buzz's branch uses v3.3 , sh83's probably does not.. and then if you are sure:
-cd libraries/AP_HAL_ESP32/targets/plane/
-make menuconfig
+```
+cd libraries/AP_HAL_ESP32/targets/esp-idf/
+idf.py menuconfig
+```
 navigate to [save]  (tab,tab,tab,enter)
 press [tab] then [ok] to update the sdkconfig file
-'config written' press [enter] to exit this dialog 
+'config written' press [enter] to exit this dialog
 press [tab] then enter on the [exit]  box to exit the app
 done.    the 'sdkconfig' file in this folder should have been updated
 cd ../../../..
 
 OR locate the 'libraries/AP_HAL_ESP32/targets/sdkconfig' and delete it, as it should call back to the 'sdkconfig.defaults' file if its not there.
 
-'cd libraries/AP_HAL_ESP32/targets/plane ; make defconfig' is the command that updates it, but that shouldn't be needed manually, we don't think.
+'cd libraries/AP_HAL_ESP32/targets/esp-idf ; idf.py defconfig' is the command that updates it, but that shouldn't be needed manually, we don't think.
 
-... try ./waf plane" 
+... try ./waf plane"
 
-5. To flash binary use espressif flash tool via `make flash` inside `libraries/AP_HAL_ESP32/targets/plane/` directory. Also other make targets are avaliable (`make monitor` , `make size` and so on) .  
+5. To flash binary use espressif flash tool via `make flash` inside `libraries/AP_HAL_ESP32/targets/esp-idf/` directory. Also other make targets are avaliable (`idf.py monitor` , `idf.py size` and so on),
 
 Alternatively, the "./waf plane' build outputs a python command that y can cut-n-paste to flash... buzz found that but using that command with a slower baudrate of 921600 instead of its recommended 2000000 worked for him:
 cd ardupilot
 python ./modules/esp_idf/components/esptool_py/esptool/esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0xf000 ./build/esp32buzz/idf-plane/ota_data_initial.bin 0x1000 ./build/esp32buzz/idf-plane/bootloader/bootloader.bin 0x20000 ./build/esp32buzz/idf-plane/arduplane.bin 0x8000 ./build/esp32buzz/idf-plane/partitions.bin
+
+---
+TODO fix this command
+Use this to flash for now :
+```
+./waf plane --upload
+```
+---
+
 
 ## Test hardware
 Currently esp32 dev board with connected gy-91 10dof sensor board is supported. Pinout (consult UARTDriver.cpp and SPIDevice.cpp for reference):
@@ -85,7 +102,7 @@ Currently esp32 dev board with connected gy-91 10dof sensor board is supported. 
 ### Uart connecion/s
 Internally connected on most devboards, just for reference.
 
-After flashing the esp32 , u can connect with a terminal app of your preference to the same COM port  ( eg /dev/ttyUSB0) at a baud rate of 115200, software flow control, 8N1 common uart settings, and get to see the output from hal.console->printf("...") and other console messages.  
+After flashing the esp32 , u can connect with a terminal app of your preference to the same COM port  ( eg /dev/ttyUSB0) at a baud rate of 115200, software flow control, 8N1 common uart settings, and get to see the output from hal.console->printf("...") and other console messages.
 
 ### Console/usb/boot-messages/mavlink telem aka serial0/uart0:
 
@@ -123,18 +140,18 @@ After flashing the esp32 , u can connect with a terminal app of your preference 
 
 
 ### Compass (using i2c)
- - u need to set the ardupilot params, and connected a GPS that has at least one i2c compass on it.. tested this with a HMC5883 and/or LIS3MDL 
+ - u need to set the ardupilot params, and connected a GPS that has at least one i2c compass on it.. tested this with a HMC5883 and/or LIS3MDL
 COMPASS_ENABLE=1
 COMPASS_EXTERNAL=1
 COMPASS_EXTERN2=1
 COMPASS_EXTERN3=1
 
-### Analog input/s 
+### Analog input/s
 
 2nd column is the ardupilot _PIN number and matches what u specify in the third column of HAL_ESP32_ADC_PINS #define elsewhere :
 
 if HAL_ESP32_ADC_PINS == HAL_ESP32_ADC_PINS_OPTION1:
-| ESP32   | AnalogIn  | 
+| ESP32   | AnalogIn  |
 | ---     | ---       |
 | GPIO35  | 1         |
 | GPIO34  | 2         |
@@ -150,7 +167,7 @@ ARSPD_PIN =     4  - and it will attempt to read the adc value on GPIO36 for ana
 
 
 if HAL_ESP32_ADC_PINS == HAL_ESP32_ADC_PINS_OPTION2:
-| ESP32   | AnalogIn   | 
+| ESP32   | AnalogIn   |
 | ---     | ---        |
 | GPIO35  | 35         |
 | GPIO34  | 34         |
@@ -169,11 +186,11 @@ ARSPD_PIN =     36  - and it will attempt to read the adc value on GPIO36 for an
 ### RC Servo connection/s
 
 | BuzzsPcbHeader|ESP32|  RCOUT   |TYPICAL |
-|     ---       | --- |   ---    | ---    | 
+|     ---       | --- |   ---    | ---    |
 |  servo1       |PIN25|SERVO-OUT1|AILERON |
 |  servo2       |PIN27|SERVO-OUT2|ELEVATOR|
-|  servo3       |PIN33|SERVO-OUT3|THROTTLE| 
-|  servo4       |PIN32|SERVO-OUT4| RUDDER | 
+|  servo3       |PIN33|SERVO-OUT3|THROTTLE|
+|  servo4       |PIN32|SERVO-OUT4| RUDDER |
 |  servo5       |PIN22|SERVO-OUT5| avail  |
 |  servo6       |PIN21|SERVO-OUT6| avail  |
 
@@ -225,7 +242,7 @@ Currently used debugger is called a 'TIAO USB Multi Protocol Adapter' which is a
 
 ## SDCARD connection
 
-|ESP32|  SDCARD  | 
+|ESP32|  SDCARD  |
 | --- |     ---  |
 |D2   | D0/PIN7  |
 |D14  | CLK/PIN5 |
@@ -258,17 +275,25 @@ Currently used debugger is called a 'TIAO USB Multi Protocol Adapter' which is a
 - [x] waf can upload to your board with --upload now
 
 ### Known Bugs
-- [ ] PWM output driver works, but it appears that throttle supression when disarmed does not.
+- [X] PWM output driver works, but it appears that throttle supression when disarmed does not.
 - [ ] AnalogIn driver - partial progress not really tested or documented
+- [ ] Fix wifi socket implementation in tcp (allow multiple connection)
 
 ### Future development
+- [ ] Automatic board header listing
+- [ ] Finish waf commands to build seamlessly and wrap all function of esp-idf without command voodoo
+- [ ] UDP mavlink over wifi does not automatically stream to client/s when they connect to wifi AP.
+- [ ] Fix parameters loading in wifi both udp and tcp (slow and not reliable)
 - [ ] Pin remapping via parameters
 - [ ] GPIO driver
-- [ ] DShot driver / 4way pass / esc telemetry / ws2812b led
+- [ ] DShot driver
+- [ ] 4way pass
+- [ ] esc telemetry
+- [ ] ws2812b ws2815 led strip
 - [ ] INA219 driver
 - [ ] GSD
-- [ ] UDP mavlink over wifi does not automatically stream to client/s when they connect to wifi AP. 
 - [ ] Buzzer
+
 
 ### analysing a 'coredump' from the uart...
 
@@ -285,7 +310,7 @@ cp build/esp32buzz/idf-plane/arduplane.elf .
 espcoredump.py dbg_corefile arduplane.elf -c core.txt -t b64
 
 .. this wiull give u a 'gdb' of the core dump, from which you can type..
-bt 
+bt
 ..short for 'backtrace of current thread' or ..
 thread apply all bt full
 ..short for 'backtrace of all threads' or ..
@@ -293,7 +318,7 @@ info var
 .. which lists "All global and static variable names".
 info locals
 .. lists "All global and static variable names"..
- info args 
+ info args
 ..to list "Arguments of the current stack frame" (names and values)..
 
 other things to sue..
@@ -318,9 +343,9 @@ esptool.py --chip esp32 --baud 921600 --before default_reset --after hard_reset 
 
 
 ### example log of boot messages:
- 
+
 [22:51:20:226] ets Jun  8 2016 00:22:57
-[22:51:20:228] 
+[22:51:20:228]
 [22:51:20:228] rst:0x1 (POWERON_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)
 [22:51:20:234] configsip: 0, SPIWP:0xee
 [22:51:20:236] clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
