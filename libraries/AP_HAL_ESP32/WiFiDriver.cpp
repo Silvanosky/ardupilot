@@ -221,7 +221,7 @@ void WiFiDriver::initialize_wifi()
     strcpy((char *)wifi_config.ap.password, "ardupilot1");
 #endif
     wifi_config.ap.authmode = WIFI_AUTH_WPA_WPA2_PSK;
-    wifi_config.ap.max_connection = 4;
+    wifi_config.ap.max_connection = MAX_CONNECTION;
     esp_wifi_set_mode(WIFI_MODE_AP);
     esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config);
     esp_wifi_start();
