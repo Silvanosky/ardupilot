@@ -20,6 +20,8 @@
 #include <AP_HAL_ESP32/AP_HAL_ESP32.h>
 #include <AP_HAL_ESP32/Semaphores.h>
 
+#define MAX_CONNECTION 5
+
 class ESP32::WiFiDriver : public AP_HAL::UARTDriver {
 public:
     WiFiDriver();
