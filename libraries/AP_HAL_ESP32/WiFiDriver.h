@@ -63,8 +63,8 @@ private:
     ByteBuffer _writebuf{0};
     Semaphore _write_mutex;
     ConnectionState _state;
-    int accept_socket;
-    int read_socket;
+    short accept_socket;
+    short socket_list[MAX_CONNECTION];
     void *_wifi_task_handle;
     void initialize_wifi();
     bool read_data();
@@ -72,4 +72,5 @@ private:
     bool start_listen();
     bool try_accept();
     static void _wifi_thread(void* arg);
+    unsigned short available_socket();
 };
