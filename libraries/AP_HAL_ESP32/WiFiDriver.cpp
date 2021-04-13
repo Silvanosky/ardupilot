@@ -38,8 +38,10 @@ extern const AP_HAL::HAL& hal;
 WiFiDriver::WiFiDriver()
 {
     _state = NOT_INITIALIZED;
-    read_socket = -1;
     accept_socket = -1;
+
+    for (unsigned short i = 0; i < MAX_CONNECTION; ++i)
+        socket_list[i] = -1;
 }
 
 void WiFiDriver::begin(uint32_t b)
@@ -145,57 +147,75 @@ bool WiFiDriver::try_accept()
 {
     struct sockaddr_in sourceAddr;
     uint addrLen = sizeof(sourceAddr);
-    read_socket = accept(accept_socket, (struct sockaddr *)&sourceAddr, &addrLen);
-    if (read_socket >= 0) {
-        fcntl(read_socket, F_SETFL, O_NONBLOCK);
-        return true;
+    short i = available_socket();
+    if (i != MAX_CONNECTION)
+    {
+        socket_list[i] = accept(accept_socket, (struct sockaddr *)&sourceAddr, &addrLen);
+        if (socket_list[i] >= 0)
+        {
+            fcntl(socket_list[i], F_SETFL, O_NONBLOCK);
+            return true;
+        }
     }
     return false;
 }
 
 bool WiFiDriver::read_data()
 {
-    int count = 0;
-    do {
-        count = recv(read_socket, (void *)_buffer, sizeof(_buffer), 0);
-        if (count > 0) {
-            _readbuf.write(_buffer, count);
-            if (count == sizeof(_buffer)) {
-                _more_data = true;
+    for (unsigned short i = 0; i < MAX_CONNECTION && socket_list[i] > -1; ++i)
+    {
+        int count = 0;
+        do
+        {
+            count = recv(socket_list[i], (void *)_buffer, sizeof(_buffer), 0);
+            if (count > 0)
+            {
+                _readbuf.write(_buffer, count);
+                if (count == sizeof(_buffer))
+                {
+                    _more_data = true;
+                }
             }
-        } else if (count < 0 &&  errno != EAGAIN) {
-            shutdown(read_socket, 0);
-            close(read_socket);
-            _state = INITIALIZED;
-            return false;
-
-        }
-    } while (count > 0);
+            else if (count < 0 &&  errno != EAGAIN)
+            {
+                shutdown(socket_list[i], 0);
+                close(socket_list[i]);
+                socket_list[i] = -1;
+                _state = INITIALIZED;
+                return false;
+            }
+        } while (count > 0);
+    }
     return true;
 }
 
 bool WiFiDriver::write_data()
 {
-    int count = 0;
-    _write_mutex.take_blocking();
-    do {
-        count = _writebuf.peekbytes(_buffer, sizeof(_buffer));
-        if (count > 0) {
-            count = send(read_socket, (void*) _buffer, count, 0);
+    for (unsigned short i = 0; i < MAX_CONNECTION && socket_list[i] > -1; ++i)
+    {
+        int count = 0;
+        _write_mutex.take_blocking();
+        do
+        {
+            count = _writebuf.peekbytes(_buffer, sizeof(_buffer));
             if (count > 0) {
-                _writebuf.advance(count);
-                if (count == sizeof(_buffer)) {
-                    _more_data = true;
+                count = send(socket_list[i], (void*) _buffer, count, 0);
+                if (count > 0) {
+                    _writebuf.advance(count);
+                    if (count == sizeof(_buffer)) {
+                        _more_data = true;
+                    }
+                } else if (count < 0 && errno != EAGAIN) {
+                    shutdown(socket_list[i], 0);
+                    close(socket_list[i]);
+                    socket_list[i] = -1;
+                    _state = INITIALIZED;
+                    _write_mutex.give();
+                    return false;
                 }
-            } else if (count < 0 && errno != EAGAIN) {
-                shutdown(read_socket, 0);
-                close(read_socket);
-                _state = INITIALIZED;
-                _write_mutex.give();
-                return false;
             }
-        }
-    } while (count > 0);
+        } while (count > 0);
+    }
     _write_mutex.give();
     return true;
 }
@@ -275,4 +295,13 @@ void WiFiDriver::_wifi_thread(void *arg)
 bool WiFiDriver::discard_input()
 {
 	return false;
+}
+
+unsigned short WiFiDriver::available_socket()
+{
+    for (unsigned short i = 0; i < MAX_CONNECTION; ++i)
+        if (socket_list[i] == -1)
+            return i;
+
+    return MAX_CONNECTION;
 }
