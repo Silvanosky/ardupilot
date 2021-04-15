@@ -1,0 +1,22 @@
+image: archlinux:latest
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+
+before_script:
+    - pacman -Syu --noconfirm
+    - pacman -S --noconfirm --needed base-devel git make flex bison gperf python-pip cmake ninja ccache dfu-util libusb
+    #- pip install -r modules/esp_idf/requirements.txt
+    - cd modules/esp_idf
+    - ./install.sh
+    - unset IDF_PATH
+    - source ./export.sh
+    - cd ../..
+
+build:
+  stage: build
+  script:
+    - ./waf configure --board=esp32diy --debug
+    - ./waf rover
