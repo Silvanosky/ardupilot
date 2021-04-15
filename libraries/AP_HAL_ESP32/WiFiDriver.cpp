@@ -40,7 +40,7 @@ WiFiDriver::WiFiDriver()
     _state = NOT_INITIALIZED;
     accept_socket = -1;
 
-    for (unsigned short i = 0; i < MAX_CONNECTION; ++i)
+    for (unsigned short i = 0; i < WIFI_MAX_CONNECTION; ++i)
         socket_list[i] = -1;
 }
 
@@ -148,7 +148,7 @@ bool WiFiDriver::try_accept()
     struct sockaddr_in sourceAddr;
     uint addrLen = sizeof(sourceAddr);
     short i = available_socket();
-    if (i != MAX_CONNECTION)
+    if (i != WIFI_MAX_CONNECTION)
     {
         socket_list[i] = accept(accept_socket, (struct sockaddr *)&sourceAddr, &addrLen);
         if (socket_list[i] >= 0)
@@ -162,7 +162,7 @@ bool WiFiDriver::try_accept()
 
 bool WiFiDriver::read_data()
 {
-    for (unsigned short i = 0; i < MAX_CONNECTION && socket_list[i] > -1; ++i)
+    for (unsigned short i = 0; i < WIFI_MAX_CONNECTION && socket_list[i] > -1; ++i)
     {
         int count = 0;
         do
@@ -176,7 +176,7 @@ bool WiFiDriver::read_data()
                     _more_data = true;
                 }
             }
-            else if (count < 0 &&  errno != EAGAIN)
+            else if (count < 0 && errno != EAGAIN)
             {
                 shutdown(socket_list[i], 0);
                 close(socket_list[i]);
@@ -191,7 +191,7 @@ bool WiFiDriver::read_data()
 
 bool WiFiDriver::write_data()
 {
-    for (unsigned short i = 0; i < MAX_CONNECTION && socket_list[i] > -1; ++i)
+    for (unsigned short i = 0; i < WIFI_MAX_CONNECTION && socket_list[i] > -1; ++i)
     {
         int count = 0;
         _write_mutex.take_blocking();
@@ -241,7 +241,7 @@ void WiFiDriver::initialize_wifi()
     strcpy((char *)wifi_config.ap.password, "ardupilot1");
 #endif
     wifi_config.ap.authmode = WIFI_AUTH_WPA_WPA2_PSK;
-    wifi_config.ap.max_connection = MAX_CONNECTION;
+    wifi_config.ap.max_connection = WIFI_MAX_CONNECTION;
     esp_wifi_set_mode(WIFI_MODE_AP);
     esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config);
     esp_wifi_start();
@@ -299,9 +299,9 @@ bool WiFiDriver::discard_input()
 
 unsigned short WiFiDriver::available_socket()
 {
-    for (unsigned short i = 0; i < MAX_CONNECTION; ++i)
+    for (unsigned short i = 0; i < WIFI_MAX_CONNECTION; ++i)
         if (socket_list[i] == -1)
             return i;
 
-    return MAX_CONNECTION;
+    return WIFI_MAX_CONNECTION;
 }
