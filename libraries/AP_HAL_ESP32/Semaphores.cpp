@@ -25,17 +25,13 @@ extern const AP_HAL::HAL& hal;
 
 using namespace ESP32;
 
-StaticSemaphore_t xMutexBuffer;
-
 Semaphore::Semaphore()
 {
-    //handle = xSemaphoreCreateMutexStatic(&xMutexBuffer);
     handle = xSemaphoreCreateRecursiveMutex();
 }
 
 bool Semaphore::give()
 {
-    //return xSemaphoreGive(handle);
     return xSemaphoreGiveRecursive(handle);
 }
 
@@ -43,10 +39,11 @@ bool Semaphore::take(uint32_t timeout_ms)
 {
 	if (timeout_ms == HAL_SEMAPHORE_BLOCK_FOREVER) {
 		take_blocking();
+        return true;
 	}
-	if (take_nonblocking())
+	if (take_nonblocking()) {
 		return true;
-
+    }
 	uint64_t start = AP_HAL::micros64();
     do {
         hal.scheduler->delay_microseconds(200);
@@ -59,13 +56,11 @@ bool Semaphore::take(uint32_t timeout_ms)
 
 void Semaphore::take_blocking()
 {
-    //xSemaphoreTake(handle, portMAX_DELAY);
     xSemaphoreTakeRecursive(handle, portMAX_DELAY);
 }
 
 bool Semaphore::take_nonblocking()
 {
-    //return xSemaphoreTake(handle, 0) == pdTRUE;
     bool ok = xSemaphoreTakeRecursive(handle, 0) == pdTRUE;
 	if (ok)
 		give();
@@ -76,30 +71,4 @@ bool Semaphore::take_nonblocking()
 bool Semaphore::check_owner()
 {
     return xSemaphoreGetMutexHolder(handle) == xTaskGetCurrentTaskHandle();
-}
-/////////////////////////////////////////////////////////
-
-Semaphore_Recursive::Semaphore_Recursive()
-{
-    handle = xSemaphoreCreateRecursiveMutex();
-}
-
-bool Semaphore_Recursive::give()
-{
-    return xSemaphoreGiveRecursive(handle);
-}
-
-bool Semaphore_Recursive::take(uint32_t timeout_ms)
-{
-    return xSemaphoreTakeRecursive(handle, timeout_ms/portTICK_PERIOD_MS);
-}
-
-void Semaphore_Recursive::take_blocking()
-{
-    xSemaphoreTakeRecursive(handle, portMAX_DELAY);
-}
-
-bool Semaphore_Recursive::take_nonblocking()
-{
-    return xSemaphoreTakeRecursive(handle, 0);
 }

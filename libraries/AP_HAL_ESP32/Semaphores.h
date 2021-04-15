@@ -21,10 +21,6 @@
 #include <AP_HAL/Semaphores.h>
 #include "HAL_ESP32_Namespace.h"
 
-//#undef HAL_SEMAPHORE_BLOCK_FOREVER
-//#define HAL_SEMAPHORE_BLOCK_FOREVER 0xFFFF
-
-
 class ESP32::Semaphore : public AP_HAL::Semaphore {
 public:
     Semaphore();
@@ -36,14 +32,4 @@ public:
     bool check_owner();
 protected:
     void*  handle;
-};
-
-
-class ESP32::Semaphore_Recursive : public ESP32::Semaphore {
-public:
-    Semaphore_Recursive();
-    bool give() override;
-    bool take(uint32_t timeout_ms) override;
-    bool take_nonblocking() override;
-    void take_blocking() override;
 };
