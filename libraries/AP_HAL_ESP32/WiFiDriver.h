@@ -20,6 +20,10 @@
 #include <AP_HAL_ESP32/AP_HAL_ESP32.h>
 #include <AP_HAL_ESP32/Semaphores.h>
 
+#ifndef WIFI_MAX_CONNECTION
+    #define WIFI_MAX_CONNECTION 5
+#endif
+
 class ESP32::WiFiDriver : public AP_HAL::UARTDriver {
 public:
     WiFiDriver();
@@ -61,8 +65,8 @@ private:
     ByteBuffer _writebuf{0};
     Semaphore _write_mutex;
     ConnectionState _state;
-    int accept_socket;
-    int read_socket;
+    short accept_socket;
+    short socket_list[WIFI_MAX_CONNECTION];
     void *_wifi_task_handle;
     void initialize_wifi();
     bool read_data();
@@ -70,4 +74,5 @@ private:
     bool start_listen();
     bool try_accept();
     static void _wifi_thread(void* arg);
+    unsigned short available_socket();
 };
