@@ -150,7 +150,7 @@ uint16_t RCOutput::get_freq(uint8_t chan)
 
 void RCOutput::enable_ch(uint8_t chan)
 {
-	if (chan >= MAX_CHANNELS)
+	if (!_initialized || chan >= MAX_CHANNELS)
 		return;
 
 	pwm_out &out = pwm_group_list[chan];
@@ -159,7 +159,7 @@ void RCOutput::enable_ch(uint8_t chan)
 
 void RCOutput::disable_ch(uint8_t chan)
 {
-	if (chan >= MAX_CHANNELS)
+	if (!_initialized || chan >= MAX_CHANNELS)
 		return;
 
 	write(chan, 0);
@@ -169,7 +169,7 @@ void RCOutput::disable_ch(uint8_t chan)
 
 void RCOutput::write(uint8_t chan, uint16_t period_us)
 {
-	if (chan >= MAX_CHANNELS)
+	if (!_initialized || chan >= MAX_CHANNELS)
 		return;
 
 	if(_corked) {
@@ -238,7 +238,7 @@ void RCOutput::timer_tick(void)
 
 void RCOutput::write_int(uint8_t chan, uint16_t period_us)
 {
-	if (chan >= MAX_CHANNELS)
+	if (!_initialized || chan >= MAX_CHANNELS)
 		return;
 
     bool safety_on = hal.util->safety_switch_state() == AP_HAL::Util::SAFETY_DISARMED;
