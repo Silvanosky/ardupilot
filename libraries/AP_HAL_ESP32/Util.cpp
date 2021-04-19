@@ -218,7 +218,7 @@ Util::FlashBootloader Util::flash_bootloader()
 bool Util::get_system_id(char buf[40])
 {
     //uint8_t serialid[12];
-    char board_name[14] = "esp32-buzz   ";
+    char board_name[14] = "esp32_ardu";
 
     uint8_t base_mac_addr[6] = {0};
     esp_err_t ret = esp_efuse_mac_get_custom(base_mac_addr);
@@ -269,7 +269,7 @@ bool Util::was_watchdog_reset() const
 			|| reason == ESP_RST_WDT;
 }
 
-#if CH_DBG_ENABLE_STACK_CHECK == TRUE
+#if ESP_DBG_ENABLE_STACK_CHECK == TRUE
 /*
   display stack usage as text buffer for @SYS/threads.txt
  */
@@ -289,8 +289,9 @@ size_t Util::thread_info(char *buf, size_t bufsize)
     //    snprintf(buf, bufsize,"\n\n%s\n", buffer);
 
     // total = ..
+    //TODO get all freertos threads
 
   return total;
 }
-#endif // CH_DBG_ENABLE_STACK_CHECK == TRUE
+#endif // ESP_DBG_ENABLE_STACK_CHECK == TRUE
 
