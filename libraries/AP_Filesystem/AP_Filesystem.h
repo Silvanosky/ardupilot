@@ -43,12 +43,9 @@ struct dirent {
 #include <errno.h>
 #include <unistd.h>
 #endif // HAL_BOARD_CHIBIOS
-#if CONFIG_HAL_BOARD == HAL_BOARD_LINUX || CONFIG_HAL_BOARD == HAL_BOARD_SITL
-#include "AP_Filesystem_posix.h"
-#endif
+#if CONFIG_HAL_BOARD == HAL_BOARD_LINUX || CONFIG_HAL_BOARD == HAL_BOARD_SITL || CONFIG_HAL_BOARD == HAL_BOARD_ESP32
 
-#if CONFIG_HAL_BOARD == HAL_BOARD_ESP32
-#include "AP_Filesystem_ESP32.h"
+#include "AP_Filesystem_posix.h"
 #endif
 
 #include "AP_Filesystem_backend.h"
