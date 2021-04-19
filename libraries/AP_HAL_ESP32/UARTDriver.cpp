@@ -280,23 +280,6 @@ void UARTDriver::begin(uint32_t b, uint16_t rxS, uint16_t txS)
         _writebuf.clear();
     }
 
-    if (sdef.is_usb) {
-#ifdef HAVE_USB_SERIAL
-        /*
-         * Initializes a serial-over-USB CDC driver.
-         */
-        if (!_device_initialised) {
-            if ((SerialUSBDriver*)sdef.serial == &SDU1
-#if HAL_HAVE_DUAL_USB_CDC
-                || (SerialUSBDriver*)sdef.serial == &SDU2
-#endif
-            ) {
-                usb_initialise();
-            }
-            _device_initialised = true;
-        }
-#endif
-    } else {
 #if HAL_USE_SERIAL == TRUE
         if (_baudrate != 0) {
             sercfg.speed = _baudrate;
@@ -315,7 +298,6 @@ void UARTDriver::begin(uint32_t b, uint16_t rxS, uint16_t txS)
 
         }
 #endif // HAL_USE_SERIAL
-    }
 
     if (_writebuf.get_size()) {
         _tx_initialised = true;
@@ -323,7 +305,7 @@ void UARTDriver::begin(uint32_t b, uint16_t rxS, uint16_t txS)
     if (_readbuf.get_size()) {
         _rx_initialised = true;
     }
-    _uart_owner_thd = chThdGetSelfX();
+    _uart_owner_thd = xTaskGetCurrentTaskHandle();
     // initialize the TX thread if necessary
     thread_init();
 
