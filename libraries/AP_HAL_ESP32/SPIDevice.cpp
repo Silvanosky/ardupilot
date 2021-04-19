@@ -33,7 +33,7 @@ SPIDeviceDesc device_desc[] = {HAL_ESP32_SPI_DEVICES};
 SPIBusDesc bus_desc[] = {HAL_ESP32_SPI_BUSES};
 
 SPIBus::SPIBus(uint8_t _bus):
-    DeviceBus(Scheduler::SPI_PRIORITY), bus(_bus)
+    DeviceBus(APM_SPI_PRIORITY), bus(_bus)
 {
 
 #ifdef SPIDEBUG 

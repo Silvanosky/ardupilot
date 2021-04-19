@@ -38,7 +38,7 @@ struct I2CBusDesc {
 
 class I2CBus : public  DeviceBus {
 public:
-    I2CBus():DeviceBus(Scheduler::I2C_PRIORITY) {};
+    I2CBus():DeviceBus(APM_I2C_PRIORITY) {};
     i2c_port_t port;
 	uint32_t bus_clock;
 };

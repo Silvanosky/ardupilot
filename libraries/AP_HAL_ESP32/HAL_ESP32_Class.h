@@ -25,3 +25,6 @@ public:
     HAL_ESP32();
     void run(int argc, char* const* argv, Callbacks* callbacks) const override;
 };
+
+void hal_esp32_set_priority(uint8_t priority);
+void* get_main_thread();

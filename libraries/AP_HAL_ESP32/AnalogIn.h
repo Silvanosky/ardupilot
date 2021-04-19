@@ -23,6 +23,7 @@
 
 #define ANALOG_MAX_CHANNELS 8
 
+#include "driver/gpio.h"
 namespace ESP32 {
 
 class AnalogSource : public AP_HAL::AnalogSource {

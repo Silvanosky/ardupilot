@@ -25,6 +25,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#ifndef HAL_DEVICE_THREAD_STACK
+#define HAL_DEVICE_THREAD_STACK 1024
+#endif
+
 
 using namespace ESP32;
 
@@ -121,7 +125,7 @@ printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
 #ifdef BUSDEBUG
 printf("%s:%d Thread Start\n", __PRETTY_FUNCTION__, __LINE__);
 #endif
-        xTaskCreate(DeviceBus::bus_thread, name, Scheduler::DEVICE_SS,
+        xTaskCreate(DeviceBus::bus_thread, name, HAL_DEVICE_THREAD_STACK,
                     this, thread_priority, &bus_thread_handle);
     }
     DeviceBus::callback_info *callback = new DeviceBus::callback_info;

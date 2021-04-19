@@ -13,9 +13,14 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "AP_HAL_ESP32/Scheduler.h"
-#include "AP_HAL_ESP32/RCInput.h"
-#include "AP_HAL_ESP32/AnalogIn.h"
+#include <AP_HAL/AP_HAL.h>
+
+#include "AP_HAL_ESP32.h"
+
+#include "Scheduler.h"
+#include "RCInput.h"
+#include "AnalogIn.h"
+
 #include "AP_Math/AP_Math.h"
 #include "SdCard.h"
 #include "Profile.h"
@@ -35,8 +40,6 @@
 using namespace ESP32;
 
 extern const AP_HAL::HAL& hal;
-
-bool Scheduler::_initialized = true;
 
 Scheduler::Scheduler()
 {
@@ -63,14 +66,46 @@ void Scheduler::init()
 printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
 #endif
 
-    //xTaskCreatePinnedToCore(_main_thread, "APM_MAIN", Scheduler::MAIN_SS, this, Scheduler::MAIN_PRIO, &_main_task_handle, 0);
-	xTaskCreate(_main_thread, "APM_MAIN", Scheduler::MAIN_SS, this, Scheduler::MAIN_PRIO, &_main_task_handle);
-    xTaskCreate(_timer_thread, "APM_TIMER", TIMER_SS, this, TIMER_PRIO, &_timer_task_handle);
-    xTaskCreate(_rcin_thread, "APM_RCIN", RCIN_SS, this, RCIN_PRIO, &_rcin_task_handle);
-    xTaskCreate(_uart_thread, "APM_UART", UART_SS, this, UART_PRIO, &_uart_task_handle);
-    xTaskCreate(_io_thread, "APM_IO", IO_SS, this, IO_PRIO, &_io_task_handle);
-    xTaskCreate(_storage_thread, "APM_STORAGE", STORAGE_SS, this, STORAGE_PRIO, &_storage_task_handle); //no actual flash writes without this, storage kinda appears to work, but does an erase on every boot and params don't persist over reset etc.
-
+#ifndef HAL_NO_TIMER_THREAD
+    xTaskCreate(_timer_thread,
+                "APM_TIMER",
+                TIMER_THD_WA_SIZE,
+                this,
+                APM_TIMER_PRIORITY,
+                &_timer_task_handle);
+#endif
+#ifndef HAL_NO_TIMER_THREAD
+    xTaskCreate(_rcout_thread,
+                "APM_RCOUT",
+                RCOUT_THD_WA_SIZE,
+                this,
+                APM_RCOUT_PRIORITY,
+                &_rcin_task_handle);
+#endif
+#ifndef HAL_NO_RCIN_THREAD
+    xTaskCreate(_rcin_thread,
+                "APM_RCIN",
+                RCIN_THD_WA_SIZE,
+                this,
+                APM_RCIN_PRIORITY,
+                &_rcin_task_handle);
+#endif
+#ifndef HAL_USE_EMPTY_IO
+    xTaskCreate(_io_thread,
+                "APM_IO",
+                IO_THD_WA_SIZE,
+                this,
+                APM_IO_PRIORITY,
+                &_io_task_handle);
+#endif
+#ifndef HAL_USE_EMPTY_STORAGE
+    xTaskCreate(_storage_thread,
+                "APM_STORAGE",
+                STORAGE_THD_WA_SIZE,
+                this,
+                APM_STORAGE_PRIORITY,
+                &_storage_task_handle);
+#endif
  //   xTaskCreate(_print_profile, "APM_PROFILE", IO_SS, this, IO_PRIO, nullptr);
 
   //disableCore0WDT();
@@ -78,69 +113,60 @@ printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
 
 }
 
-template <typename T>
-void executor(T oui)
+void Scheduler::delay_microseconds(uint16_t us)
 {
-	oui();
+    if (us <= 100) {
+        ets_delay_us(us);
+    } else {
+        uint32_t tick = portTICK_PERIOD_MS * 1000;
+        vTaskDelay((us+tick-1)/tick);
+    }
+}
+/*
+  wrapper around sem_post that boosts main thread priority
+ */
+static void set_high_priority()
+{
+#if APM_MAIN_PRIORITY_BOOST != APM_MAIN_PRIORITY
+    hal_esp32_set_priority(APM_MAIN_PRIORITY_BOOST);
+#endif
 }
 
-void Scheduler::thread_create_trampoline(void *ctx)
+void Scheduler::boost_end()
 {
-    AP_HAL::MemberProc *t = (AP_HAL::MemberProc *)ctx;
-    (*t)();
-    free(t);
+#if APM_MAIN_PRIORITY_BOOST != APM_MAIN_PRIORITY
+    if (in_main_thread() && _priority_boosted) {
+        _priority_boosted = false;
+        hal_esp32_set_priority(APM_MAIN_PRIORITY);
+    }
+#endif
+
 }
 
 /*
-  create a new thread
-*/
-bool Scheduler::thread_create(AP_HAL::MemberProc proc, const char *name, uint32_t stack_size, priority_base base, int8_t priority)
+  a variant of delay_microseconds that boosts priority to
+  APM_MAIN_PRIORITY_BOOST for APM_MAIN_PRIORITY_BOOST_USEC
+  microseconds when the time completes. This significantly improves
+  the regularity of timing of the main loop
+ */
+void Scheduler::delay_microseconds_boost(uint16_t usec)
 {
-#ifdef SCHEDDEBUG
-printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
-#endif
+    if (!_priority_boosted && in_main_thread()) {
+        set_high_priority();
+        _priority_boosted = true;
+        _called_boost = true;
+    }
+    delay_microseconds(usec); //Suspends Thread for desired microseconds
+}
 
-    // take a copy of the MemberProc, it is freed after thread exits
-    AP_HAL::MemberProc *tproc = (AP_HAL::MemberProc *)malloc(sizeof(proc));
-    if (!tproc) {
+bool Scheduler::check_called_boost()
+{
+    if (!_called_boost) {
         return false;
     }
-    *tproc = proc;
-
-    uint8_t thread_priority = IO_PRIO;
-    static const struct {
-        priority_base base;
-        uint8_t p;
-    } priority_map[] = {
-        { PRIORITY_BOOST, IO_PRIO},
-        { PRIORITY_MAIN, MAIN_PRIO},
-        { PRIORITY_SPI, SPI_PRIORITY},
-        { PRIORITY_I2C, I2C_PRIORITY},
-        { PRIORITY_CAN, IO_PRIO},
-        { PRIORITY_TIMER, TIMER_PRIO},
-        { PRIORITY_RCIN, RCIN_PRIO},
-        { PRIORITY_IO, IO_PRIO},
-        { PRIORITY_UART, UART_PRIO},
-        { PRIORITY_STORAGE, STORAGE_PRIO},
-        { PRIORITY_SCRIPTING, IO_PRIO},
-    };
-    for (uint8_t i=0; i<ARRAY_SIZE(priority_map); i++) {
-        if (priority_map[i].base == base) {
-#ifdef SCHEDDEBUG
-printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
-#endif
-            thread_priority = constrain_int16(priority_map[i].p + priority, 1, 25);
-            break;
-        }
-    }
-
-	void* xhandle;
-    BaseType_t xReturned = xTaskCreate(thread_create_trampoline, name, stack_size, tproc, thread_priority, &xhandle);
-    if (xReturned != pdPASS) {
-        free(tproc);
-        return false;
-    }
+    _called_boost = false;
     return true;
+
 }
 
 void Scheduler::delay(uint16_t ms)
@@ -156,34 +182,25 @@ void Scheduler::delay(uint16_t ms)
     }
 }
 
-void Scheduler::delay_microseconds(uint16_t us)
-{
-    if (us <= 100) {
-        ets_delay_us(us);
-    } else {
-        uint32_t tick = portTICK_PERIOD_MS * 1000;
-        vTaskDelay((us+tick-1)/tick);
-    }
-}
-
 void Scheduler::register_timer_process(AP_HAL::MemberProc proc)
 {
 #ifdef SCHEDDEBUG
 printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
 #endif
+	_timer_sem.take_blocking();
     for (uint8_t i = 0; i < _num_timer_procs; i++) {
         if (_timer_proc[i] == proc) {
+			_timer_sem.give();
             return;
         }
     }
-    if (_num_timer_procs >= ESP32_SCHEDULER_MAX_TIMER_PROCS) {
+    if (_num_timer_procs < ESP32_SCHEDULER_MAX_TIMER_PROCS) {
+        _timer_proc[_num_timer_procs] = proc;
+        _num_timer_procs++;
+    } else {
         printf("Out of timer processes\n");
-        return;
     }
-    _timer_sem.take_blocking();
-    _timer_proc[_num_timer_procs] = proc;
-    _num_timer_procs++;
-    _timer_sem.give();
+	_timer_sem.give();
 }
 
 void Scheduler::register_io_process(AP_HAL::MemberProc proc)
@@ -216,75 +233,29 @@ void Scheduler::reboot(bool hold_in_bootloader)
 {
     printf("Restarting now...\n");
     hal.rcout->force_safety_on();
+
     unmount_sdcard();
+
     esp_restart();
-}
-
-bool Scheduler::in_main_thread() const
-{
-    return _main_task_handle == xTaskGetCurrentTaskHandle();
-}
-
-void Scheduler::set_system_initialized()
-{
-#ifdef SCHEDDEBUG
-printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
-#endif
-    if (_initialized) {
-        AP_HAL::panic("PANIC: scheduler::system_initialized called more than once");
-    }
-
-    _initialized = true;
-}
-
-bool Scheduler::is_system_initialized()
-{
-    return _initialized;
-}
-
-void Scheduler::_timer_thread(void *arg)
-{
-#ifdef SCHEDDEBUG
-printf("%s:%d start\n", __PRETTY_FUNCTION__, __LINE__);
-#endif
-    Scheduler *sched = (Scheduler *)arg;
-    while (!_initialized) {
-        sched->delay_microseconds(1000);
-    }
-#ifdef SCHEDDEBUG
-printf("%s:%d initialised\n", __PRETTY_FUNCTION__, __LINE__);
-#endif
-    while (true) {
-        sched->delay_microseconds(1000);
-        sched->_run_timers();
-        // process any pending RC output requests
-        hal.rcout->timer_tick();
-        //analog in
-#ifndef HAL_DISABLE_ADC_DRIVER
-		((AnalogIn*)hal.analogin)->_timer_tick();
-#endif
-	}
 }
 
 void Scheduler::_run_timers()
 {
-#ifdef SCHEDULERDEBUG 
+#ifdef SCHEDULERDEBUG
 printf("%s:%d start \n", __PRETTY_FUNCTION__, __LINE__);
 #endif
     if (_in_timer_proc) {
         return;
     }
-#ifdef SCHEDULERDEBUG 
+#ifdef SCHEDULERDEBUG
 printf("%s:%d _in_timer_proc \n", __PRETTY_FUNCTION__, __LINE__);
 #endif
     _in_timer_proc = true;
 
     int num_procs = 0;
-
     _timer_sem.take_blocking();
     num_procs = _num_timer_procs;
     _timer_sem.give();
-
     // now call the timer based drivers
     for (int i = 0; i < num_procs; i++) {
         if (_timer_proc[i]) {
@@ -297,31 +268,93 @@ printf("%s:%d _in_timer_proc \n", __PRETTY_FUNCTION__, __LINE__);
         _failsafe();
     }
 
+#if HAL_USE_ADC == TRUE && !defined(HAL_DISABLE_ADC_DRIVER)
+    // process analog input
+    ((AnalogIn *)hal.analogin)->_timer_tick();
+#endif
+
     _in_timer_proc = false;
+}
+
+void Scheduler::_timer_thread(void *arg)
+{
+#ifdef SCHEDDEBUG
+printf("%s:%d start\n", __PRETTY_FUNCTION__, __LINE__);
+#endif
+    Scheduler *sched = (Scheduler *)arg;
+    while (!sched->_hal_initialized) {
+        sched->delay_microseconds(1000);
+    }
+#ifdef SCHEDDEBUG
+printf("%s:%d initialised\n", __PRETTY_FUNCTION__, __LINE__);
+#endif
+    while (true) {
+        sched->delay_microseconds(1000);
+
+        sched->_run_timers();
+
+        if (sched->in_expected_delay()) {
+            sched->watchdog_pat();
+        }
+	}
+}
+
+void Scheduler::_rcout_thread(void *arg)
+{
+#ifndef HAL_NO_RCOUT_THREAD
+    Scheduler *sched = (Scheduler *)arg;
+    while (!sched->_hal_initialized) {
+        sched->delay_microseconds(1000);
+    }
+
+#if HAL_USE_PWM == TRUE
+    // trampoline into the rcout thread
+    ((RCOutput*)hal.rcout)->rcout_thread();
+#endif
+#endif
+}
+
+/*
+  return true if we are in a period of expected delay. This can be
+  used to suppress error messages
+*/
+bool Scheduler::in_expected_delay() const
+{
+    if (!_initialized) {
+        // until setup() is complete we expect delays
+        return true;
+    }
+    if (expect_delay_start != 0) {
+        uint32_t now = AP_HAL::millis();
+        if (now - expect_delay_start <= expect_delay_length) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void Scheduler::_rcin_thread(void *arg)
 {
     Scheduler *sched = (Scheduler *)arg;
-    while (!_initialized) {
+    while (!sched->_hal_initialized) {
         sched->delay_microseconds(20000);
     }
-    hal.rcin->init();
     while (true) {
         sched->delay_microseconds(1000);
         ((RCInput *)hal.rcin)->_timer_tick();
     }
 }
 
-void Scheduler::_run_io(void)
+void Scheduler::_run_io()
 {
-#ifdef SCHEDULERDEBUG 
+#ifdef SCHEDULERDEBUG
 printf("%s:%d start \n", __PRETTY_FUNCTION__, __LINE__);
 #endif
     if (_in_io_proc) {
         return;
     }
-#ifdef SCHEDULERDEBUG 
+#ifdef SCHEDULERDEBUG
 printf("%s:%d initialised \n", __PRETTY_FUNCTION__, __LINE__);
 #endif
     _in_io_proc = true;
@@ -336,6 +369,7 @@ printf("%s:%d initialised \n", __PRETTY_FUNCTION__, __LINE__);
             _io_proc[i]();
         }
     }
+
     _in_io_proc = false;
 }
 
@@ -348,27 +382,37 @@ printf("%s:%d start \n", __PRETTY_FUNCTION__, __LINE__);
     while (!sched->_initialized) {
         sched->delay_microseconds(1000);
     }
+
+#ifndef HAL_NO_LOGGING
+    uint32_t last_sd_start_ms = AP_HAL::millis();
+#endif
+
 #ifdef SCHEDDEBUG
 printf("%s:%d initialised \n", __PRETTY_FUNCTION__, __LINE__);
 #endif
-    uint32_t last_sd_start_ms = AP_HAL::millis();
     while (true) {
         sched->delay_microseconds(1000);
+
         // run registered IO processes
         sched->_run_io();
 
+#if !defined(HAL_NO_LOGGING)
+        uint32_t now = AP_HAL::millis();
+#endif
+
+#ifndef HAL_NO_LOGGING
 		if (!hal.util->get_soft_armed()) {
             // if sdcard hasn't mounted then retry it every 3s in the IO
             // thread when disarmed
-            uint32_t now = AP_HAL::millis();
             if (now - last_sd_start_ms > 3000) {
                 last_sd_start_ms = now;
                 sdcard_retry();
+                //AP::FS().retry_mount(); //TODO check filesystem implementation
             }
         }
+#endif
     }
 }
-
 
 void Scheduler::_storage_thread(void* arg)
 {
@@ -376,18 +420,30 @@ void Scheduler::_storage_thread(void* arg)
 printf("%s:%d start \n", __PRETTY_FUNCTION__, __LINE__);
 #endif
     Scheduler *sched = (Scheduler *)arg;
-    while (!_initialized) {
+    while (!sched->_hal_initialized) {
         sched->delay_microseconds(10000);
     }
 #ifdef SCHEDDEBUG
 printf("%s:%d initialised \n", __PRETTY_FUNCTION__, __LINE__);
 #endif
     while (true) {
-        sched->delay_microseconds(1000);
+        sched->delay_microseconds(10000);
+
         // process any pending storage writes
         hal.storage->_timer_tick();
-        //print_profile();
     }
+}
+
+void Scheduler::set_system_initialized()
+{
+#ifdef SCHEDDEBUG
+printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
+#endif
+    if (_initialized) {
+        AP_HAL::panic("PANIC: scheduler::system_initialized called more than once");
+    }
+
+    _initialized = true;
 }
 
 void Scheduler::_print_profile(void* arg)
@@ -405,6 +461,7 @@ void Scheduler::_print_profile(void* arg)
 
 }
 
+/*
 void Scheduler::_uart_thread(void *arg)
 {
 #ifdef SCHEDDEBUG
@@ -425,7 +482,7 @@ printf("%s:%d initialised\n", __PRETTY_FUNCTION__, __LINE__);
         hal.serial(3)->_timer_tick();
         hal.console->_timer_tick();
     }
-}
+}*/
 
 
     // get the active main loop rate
@@ -451,35 +508,150 @@ void Scheduler::print_stats(void)
    // printf("loop_rate_hz: %d",get_loop_rate_hz());
 }
 
-void IRAM_ATTR Scheduler::_main_thread(void *arg)
+template <typename T>
+void executor(T oui)
+{
+	oui();
+}
+
+void Scheduler::thread_create_trampoline(void *ctx)
+{
+    AP_HAL::MemberProc *t = (AP_HAL::MemberProc *)ctx;
+    (*t)();
+    free(t);
+}
+
+// calculates an integer to be used as the priority for a newly-created thread
+uint8_t Scheduler::calculate_thread_priority(priority_base base, int8_t priority) const
+{
+    uint8_t thread_priority = APM_IO_PRIORITY;
+    static const struct {
+        priority_base base;
+        uint8_t p;
+    } priority_map[] = {
+        { PRIORITY_BOOST, APM_MAIN_PRIORITY_BOOST},
+        { PRIORITY_MAIN, APM_MAIN_PRIORITY},
+        { PRIORITY_SPI, APM_SPI_PRIORITY},
+        { PRIORITY_I2C, APM_I2C_PRIORITY},
+        { PRIORITY_CAN, APM_CAN_PRIORITY},
+        { PRIORITY_TIMER, APM_TIMER_PRIORITY},
+        { PRIORITY_RCOUT, APM_RCOUT_PRIORITY},
+        { PRIORITY_RCIN, APM_RCIN_PRIORITY},
+        { PRIORITY_IO, APM_IO_PRIORITY},
+        { PRIORITY_UART, APM_UART_PRIORITY},
+        { PRIORITY_STORAGE, APM_STORAGE_PRIORITY},
+        { PRIORITY_SCRIPTING, APM_SCRIPTING_PRIORITY},
+
+    };
+    for (uint8_t i=0; i<ARRAY_SIZE(priority_map); i++) {
+        if (priority_map[i].base == base) {
+#ifdef SCHEDDEBUG
+printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
+#endif
+            thread_priority = constrain_int16(priority_map[i].p + priority, LOWPRIO, HIGHPRIO);
+            break;
+        }
+    }
+    return thread_priority;
+}
+
+/*
+  create a new thread
+*/
+bool Scheduler::thread_create(AP_HAL::MemberProc proc, const char *name, uint32_t stack_size, priority_base base, int8_t priority)
 {
 #ifdef SCHEDDEBUG
-printf("%s:%d start\n", __PRETTY_FUNCTION__, __LINE__);
+printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
 #endif
-    Scheduler *sched = (Scheduler *)arg;
-    hal.serial(0)->begin(115200);
-    hal.serial(1)->begin(57600);
-    hal.serial(2)->begin(57600);
-    //hal.uartC->begin(921600);
-    hal.serial(3)->begin(115200);
-
-#ifndef HAL_DISABLE_ADC_DRIVER
-    hal.analogin->init();
-#endif
-    hal.rcout->init();
-
-    sched->callbacks->setup();
-
-    sched->set_system_initialized();
-
-#ifdef SCHEDDEBUG
-printf("%s:%d initialised\n", __PRETTY_FUNCTION__, __LINE__);
-#endif
-    while (true) {
-        sched->callbacks->loop();
-        sched->delay_microseconds(250);
-
-        sched->print_stats(); // only runs every 60 seconds.
+    // take a copy of the MemberProc, it is freed after thread exits
+    AP_HAL::MemberProc *tproc = (AP_HAL::MemberProc *)malloc(sizeof(proc));
+    if (!tproc) {
+        return false;
     }
+    *tproc = proc;
+
+    const uint8_t thread_priority = calculate_thread_priority(base, priority);
+
+	void* xhandle;
+    BaseType_t xReturned = xTaskCreate(thread_create_trampoline,
+                                       name,
+                                       stack_size,
+                                       tproc,
+                                       thread_priority,
+                                       &xhandle);
+
+    if (xReturned != pdPASS) {
+        free(tproc);
+        return false;
+    }
+    return true;
+}
+
+/*
+  inform the scheduler that we are calling an operation from the
+  main thread that may take an extended amount of time. This can
+  be used to prevent watchdog reset during expected long delays
+  A value of zero cancels the previous expected delay
+*/
+void Scheduler::_expect_delay_ms(uint32_t ms)
+{
+    if (!in_main_thread()) {
+        // only for main thread
+        return;
+    }
+
+    // pat once immediately
+    watchdog_pat();
+
+    WITH_SEMAPHORE(expect_delay_sem);
+
+    if (ms == 0) {
+        if (expect_delay_nesting > 0) {
+            expect_delay_nesting--;
+        }
+        if (expect_delay_nesting == 0) {
+            expect_delay_start = 0;
+        }
+    } else {
+        uint32_t now = AP_HAL::millis();
+        if (expect_delay_start != 0) {
+            // we already have a delay running, possibly extend it
+            uint32_t done = now - expect_delay_start;
+            if (expect_delay_length > done) {
+                ms = MAX(ms, expect_delay_length - done);
+            }
+        }
+        expect_delay_start = now;
+        expect_delay_length = ms;
+        expect_delay_nesting++;
+
+        // also put our priority below timer thread if we are boosted
+        boost_end();
+    }
+}
+
+/*
+  this is _expect_delay_ms() with check that we are in the main thread
+ */
+void Scheduler::expect_delay_ms(uint32_t ms)
+{
+    if (!in_main_thread()) {
+        // only for main thread
+        return;
+    }
+    _expect_delay_ms(ms);
+}
+
+// pat the watchdog
+void Scheduler::watchdog_pat(void)
+{
+    //TODO inform watchdog about futur delay
+    last_watchdog_pat_ms = AP_HAL::millis();
+}
+
+
+bool Scheduler::in_main_thread() const
+{
+    return get_main_thread() == xTaskGetCurrentTaskHandle();
 }
 
