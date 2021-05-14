@@ -309,9 +309,9 @@ uint8_t AP_InertialSensor_NONE::bus_id = 0;
 
 void AP_InertialSensor_NONE::start()
 {
-    gyro_instance = _imu.register_gyro(gyro_sample_hz,
+    _imu.register_gyro(gyro_instance,  gyro_sample_hz,
                                         AP_HAL::Device::make_bus_id(AP_HAL::Device::BUS_TYPE_SITL, bus_id, 1, DEVTYPE_SITL));
-    accel_instance = _imu.register_accel(accel_sample_hz,
+    _imu.register_accel(accel_instance, accel_sample_hz,
                                         AP_HAL::Device::make_bus_id(AP_HAL::Device::BUS_TYPE_SITL, bus_id, 2, DEVTYPE_SITL));
     bus_id++;
     hal.scheduler->register_timer_process(FUNCTOR_BIND_MEMBER(&AP_InertialSensor_NONE::timer_update, void));
