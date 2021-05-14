@@ -58,9 +58,13 @@
 
 #define HAL_ESP32_SPI_DEVICES {}
 
-#define HAL_ESP32_I2C_BUSES \
+#define HAL_I2C_DEVICE_LIST \
 	{.port=I2C_NUM_0, .sda=GPIO_NUM_5, .scl=GPIO_NUM_18, .speed=400*KHZ, .internal=true},\
 	{.port=I2C_NUM_1, .sda=GPIO_NUM_22, .scl=GPIO_NUM_23, .speed=400*KHZ, .internal=true}
+#define HAL_USE_I2C TRUE
+
+#define HAL_USE_PWM TRUE
+#define HAL_WITH_DSP FALSE
 
 // GPIO36
 #define HAL_BATT_VOLT_PIN (0)
@@ -90,6 +94,7 @@
     {.port=UART_NUM_0, .rx=GPIO_NUM_3, .tx=GPIO_NUM_1 },\
 	{.port=UART_NUM_1, .rx=GPIO_NUM_39, .tx=GPIO_NUM_33 },\
 	{.port=UART_NUM_2, .rx=GPIO_NUM_34, .tx=GPIO_NUM_25 }
+
 
 #define HAVE_FILESYSTEM_SUPPORT 1
 #define HAL_ESP32_SDCARD 1

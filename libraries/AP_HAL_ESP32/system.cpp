@@ -22,6 +22,7 @@
 
 namespace AP_HAL {
 
+
 void panic(const char *errormsg, ...)
 {
     va_list ap;

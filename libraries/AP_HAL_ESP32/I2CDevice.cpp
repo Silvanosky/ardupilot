@@ -24,7 +24,7 @@ using namespace ESP32;
 #define MHZ (1000U*1000U)
 #define KHZ (1000U)
 
-I2CBusDesc i2c_bus_desc[] = { HAL_ESP32_I2C_BUSES };
+I2CBusDesc i2c_bus_desc[] = { HAL_I2C_DEVICE_LIST };
 
 I2CBus I2CDeviceManager::businfo[ARRAY_SIZE(i2c_bus_desc)];
 

@@ -309,7 +309,8 @@ void Scheduler::_rcout_thread(void *arg)
 
 #if HAL_USE_PWM == TRUE
     // trampoline into the rcout thread
-    ((RCOutput*)hal.rcout)->rcout_thread();
+    //((RCOutput*)hal.rcout)->rcout_thread();
+    hal.rcout->timer_tick();
 #endif
 #endif
 }

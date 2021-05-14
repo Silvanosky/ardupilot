@@ -20,19 +20,32 @@
 #include "AP_HAL_ESP32.h"
 #include "Semaphores.h"
 
+#include <hal/uart_types.h>
+#include <hal/gpio_types.h>
+
+#include <esp_task_wdt.h>
+#include <esp_event_base.h>
+
 #define RX_BOUNCE_BUFSIZE 64U
 #define TX_BOUNCE_BUFSIZE 64U
+
+#define LOOP_EVENT_QUEUE_SIZE (16)
 
 // enough for uartA to uartI, plus IOMCU
 #define UART_MAX_DRIVERS 10
 
-namespace ESP32 {
+#define SERIAL_BUFFERS_SIZE 512
 
-struct UARTDesc {
-    uart_port_t port;
-    gpio_num_t rx;
-    gpio_num_t tx;
+
+enum {
+    EVT_DATA,
+    EVT_PARITY,
+    EVT_TRANSMIT_END,
+    EVT_TRANSMIT_DATA_READY,
+    EVT_TRANSMIT_UNBUFFERED
 };
+
+namespace ESP32 {
 
 class UARTDriver : public AP_HAL::UARTDriver {
 public:
@@ -135,7 +148,7 @@ public:
     static void uart_info(ExpandingString &str);
 
 
-	void vprintf(const char *fmt, va_list ap) override;
+	//void vprintf(const char *fmt, va_list ap) override;
 
 private:
     const SerialDef &sdef;
@@ -143,18 +156,20 @@ private:
     /*
       copy of rx_line and tx_line with alternative configs resolved
      */
-    ioline_t atx_line;
-    ioline_t arx_line;
+    gpio_num_t atx_line;
+    gpio_num_t arx_line;
 
     // thread used for all UARTs
-    static void* volatile uart_rx_thread_ctx;
+    static TaskHandle_t uart_rx_thread_ctx;
 
     // table to find UARTDrivers from serial number, used for event handling
     static UARTDriver *uart_drivers[UART_MAX_DRIVERS];
 
     // thread used for writing and reading
-    void* volatile uart_thread_ctx;
+    //TaskHandle_t* volatile uart_thread_ctx;
+    esp_event_loop_handle_t uart_thread_ctx;
     char uart_thread_name[6];
+    uint32_t last_thread_run_us;
 
     // index into uart_drivers table
     uint8_t serial_num;
@@ -164,11 +179,15 @@ private:
     uint32_t lock_read_key;
 
     uint32_t _baudrate;
-    const void* _uart_owner_thd;
+#if HAL_USE_SERIAL == TRUE
+    uart_config_t sercfg;
+    QueueHandle_t serevt;
+#endif
+    TaskHandle_t _uart_owner_thd;
 
     struct {
         // thread waiting for data
-        thread_t *thread_ctx;
+        TaskHandle_t *thread_ctx;
         // number of bytes needed
         uint16_t n;
     } _wait;
@@ -229,9 +248,12 @@ private:
 
     static void thread_rx_init();
     void thread_init();
-    void uart_thread();
+    void uart_thread(uint32_t event_id);
     static void uart_rx_thread(void* arg);
-    static void uart_thread_trampoline(void* p);
+    static void uart_thread_trampoline(void *event_handler_arg,
+                                       esp_event_base_t event_base,
+                                       int32_t event_id,
+                                       void *event_data);
 };
 
 }

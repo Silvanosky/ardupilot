@@ -27,9 +27,7 @@
 #endif
 #include <AP_Vehicle/AP_Vehicle_Type.h>
 
-/*
-static Empty::UARTDriver uartADriver;
-static ESP32::UARTDriver cons(0);
+static ESP32::UARTDriver uartADriver(0);
 static ESP32::UARTDriver uartBDriver(1);
 #ifdef HAL_ESP32_WIFI
 	#if HAL_ESP32_WIFI == 1
@@ -40,14 +38,15 @@ static ESP32::UARTDriver uartBDriver(1);
 #else
 static Empty::UARTDriver uartCDriver;
 #endif
+
 static ESP32::UARTDriver uartDDriver(2);
 static Empty::UARTDriver uartEDriver;
 static Empty::UARTDriver uartFDriver;
 static Empty::UARTDriver uartGDriver;
 static Empty::UARTDriver uartHDriver;
 static Empty::UARTDriver uartIDriver;
-*/
 
+/*
 #ifndef HAL_NO_UARTDRIVER
 static HAL_UARTA_DRIVER;
 static HAL_UARTB_DRIVER;
@@ -69,6 +68,7 @@ static Empty::UARTDriver uartGDriver;
 static Empty::UARTDriver uartHDriver;
 static Empty::UARTDriver uartIDriver;
 #endif
+*/
 #if HAL_USE_I2C == TRUE && defined(HAL_I2C_DEVICE_LIST)
 static ESP32::I2CDeviceManager i2cDeviceManager;
 #else
@@ -107,7 +107,7 @@ static ESP32::Util utilInstance;
 static Empty::OpticalFlow opticalFlowDriver;
 
 #if HAL_WITH_DSP
-static ESP32::DSP dspDriver;
+static Empty::DSP dspDriver;
 #else
 static Empty::DSP dspDriver;
 #endif
@@ -266,8 +266,8 @@ void HAL_ESP32::run(int argc, char * const argv[], Callbacks* callbacks) const
     main_loop();
 }
 
-const AP_HAL::HAL& AP_HAL::get_HAL() {
+/*const AP_HAL::HAL& AP_HAL::get_HAL() {
     static const HAL_ESP32 hal_esp32;
     return hal_esp32;
-}
+}*/
 
