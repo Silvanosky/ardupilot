@@ -19,12 +19,16 @@
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Vehicle/AP_Vehicle_Type.h>
 
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL || CONFIG_HAL_BOARD == HAL_BOARD_LINUX
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL || CONFIG_HAL_BOARD == HAL_BOARD_LINUX || CONFIG_HAL_BOARD == HAL_BOARD_ESP32
 
+#if CONFIG_HAL_BOARD != HAL_BOARD_ESP32
 #if defined(__APPLE__)
 #include <sys/mount.h>
 #else
-//#include <sys/vfs.h>
+#include <sys/vfs.h>
+#endif
+#else
+#include "esp_vfs_fat.h"
 #endif
 #include <utime.h>
 
@@ -125,22 +129,62 @@ int AP_Filesystem_Posix::closedir(void *dirp)
 int64_t AP_Filesystem_Posix::disk_free(const char *path)
 {
     path = map_filename(path);
+
+#if CONFIG_HAL_BOARD != HAL_BOARD_ESP32
     struct statfs stats;
     if (::statfs(path, &stats) < 0) {
         return -1;
     }
     return (((int64_t)stats.f_bavail) * stats.f_bsize);
+#else
+    FATFS *fs;
+	DWORD fre_clust, fre_sect;
+
+	/* Get volume information and free clusters of sdcard */
+	auto res = f_getfree("/SDCARD/", &fre_clust, &fs);
+	if (res) {
+		return -1;
+	}
+
+	/* Get total sectors and free sectors */
+	fre_sect = fre_clust * fs->csize;
+
+	int64_t tmp_free_bytes = fre_sect * FF_SS_SDCARD;
+
+    return tmp_free_bytes;
+
+#endif
 }
 
 // return total disk space in bytes
 int64_t AP_Filesystem_Posix::disk_space(const char *path)
 {
     path = map_filename(path);
+
+#if CONFIG_HAL_BOARD != HAL_BOARD_ESP32
     struct statfs stats;
     if (::statfs(path, &stats) < 0) {
         return -1;
     }
     return (((int64_t)stats.f_blocks) * stats.f_bsize);
+#else
+    FATFS *fs;
+	DWORD fre_clust, tot_sect;
+
+	/* Get volume information and free clusters of sdcard */
+	auto res = f_getfree("/SDCARD/", &fre_clust, &fs);
+	if (res) {
+		return -1;
+	}
+
+	/* Get total sectors and free sectors */
+	tot_sect = (fs->n_fatent - 2) * fs->csize;
+
+	int64_t tmp_total_bytes = tot_sect * FF_SS_SDCARD;
+
+    return tmp_total_bytes;
+
+#endif
 }
 
 

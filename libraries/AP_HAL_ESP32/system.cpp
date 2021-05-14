@@ -22,6 +22,9 @@
 
 namespace AP_HAL {
 
+void init()
+{
+}
 
 void panic(const char *errormsg, ...)
 {
