@@ -20,6 +20,8 @@
 #include <AP_HAL/AP_HAL_Macros.h>
 #include <AP_HAL/Semaphores.h>
 #include "HAL_ESP32_Namespace.h"
+#include "freertos/FreeRTOS.h"
+#include <freertos/semphr.h>
 
 class ESP32::Semaphore : public AP_HAL::Semaphore {
 public:
@@ -31,5 +33,5 @@ public:
 
     bool check_owner();
 protected:
-    void*  handle;
+    SemaphoreHandle_t handle;
 };

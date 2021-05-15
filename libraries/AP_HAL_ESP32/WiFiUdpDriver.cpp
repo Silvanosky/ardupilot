@@ -204,7 +204,7 @@ void WiFiUdpDriver::initialize_wifi()
     wifi_config.ap.authmode = WIFI_AUTH_WPA_WPA2_PSK;
     wifi_config.ap.max_connection = 4;
     esp_wifi_set_mode(WIFI_MODE_AP);
-    esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config);
+    esp_wifi_set_config(WIFI_IF_AP, &wifi_config);
     esp_wifi_start();
 }
 

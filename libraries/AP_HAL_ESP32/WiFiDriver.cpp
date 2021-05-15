@@ -227,6 +227,7 @@ void WiFiDriver::initialize_wifi()
     esp_event_loop_init(nullptr, nullptr);
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     esp_wifi_init(&cfg);
+
     esp_wifi_set_storage(WIFI_STORAGE_FLASH);
     wifi_config_t wifi_config;
     memset(&wifi_config, 0, sizeof(wifi_config));
@@ -242,8 +243,9 @@ void WiFiDriver::initialize_wifi()
 #endif
     wifi_config.ap.authmode = WIFI_AUTH_WPA_WPA2_PSK;
     wifi_config.ap.max_connection = WIFI_MAX_CONNECTION;
+
     esp_wifi_set_mode(WIFI_MODE_AP);
-    esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config);
+    esp_wifi_set_config(WIFI_IF_AP, &wifi_config);
     esp_wifi_start();
 }
 
