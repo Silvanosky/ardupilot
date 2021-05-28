@@ -74,13 +74,13 @@ printf("%s:%d \n", __PRETTY_FUNCTION__, __LINE__);
                 APM_TIMER_PRIORITY,
                 &_timer_task_handle);
 #endif
-#ifndef HAL_NO_TIMER_THREAD
+#ifndef HAL_NO_RCOUT_THREAD
     xTaskCreate(_rcout_thread,
                 "APM_RCOUT",
                 RCOUT_THD_WA_SIZE,
                 this,
                 APM_RCOUT_PRIORITY,
-                &_rcin_task_handle);
+                &_rcout_task_handle);
 #endif
 #ifndef HAL_NO_RCIN_THREAD
     xTaskCreate(_rcin_thread,
@@ -279,23 +279,23 @@ printf("%s:%d _in_timer_proc \n", __PRETTY_FUNCTION__, __LINE__);
 void Scheduler::_timer_thread(void *arg)
 {
 #ifdef SCHEDDEBUG
-printf("%s:%d start\n", __PRETTY_FUNCTION__, __LINE__);
+	printf("%s:%d start\n", __PRETTY_FUNCTION__, __LINE__);
 #endif
-    Scheduler *sched = (Scheduler *)arg;
-    while (!sched->_hal_initialized) {
-        sched->delay_microseconds(1000);
-    }
+	Scheduler *sched = (Scheduler *)arg;
+	while (!sched->_hal_initialized) {
+		sched->delay_microseconds(1000);
+	}
 #ifdef SCHEDDEBUG
-printf("%s:%d initialised\n", __PRETTY_FUNCTION__, __LINE__);
+	printf("%s:%d initialised\n", __PRETTY_FUNCTION__, __LINE__);
 #endif
-    while (true) {
-        sched->delay_microseconds(1000);
+	while (true) {
+		sched->delay_microseconds(1000);
 
-        sched->_run_timers();
+		sched->_run_timers();
 
-        if (sched->in_expected_delay()) {
-            sched->watchdog_pat();
-        }
+		if (sched->in_expected_delay()) {
+			sched->watchdog_pat();
+		}
 	}
 }
 
@@ -310,7 +310,11 @@ void Scheduler::_rcout_thread(void *arg)
 #if HAL_USE_PWM == TRUE
     // trampoline into the rcout thread
     //((RCOutput*)hal.rcout)->rcout_thread();
-    hal.rcout->timer_tick();
+
+    while (true) {
+        sched->delay_microseconds(1000);
+        hal.rcout->timer_tick();
+    }
 #endif
 #endif
 }

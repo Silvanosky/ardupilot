@@ -26,7 +26,9 @@ idf_build_process(esp32
     SDKCONFIG ${CMAKE_CURRENT_LIST_DIR}/sdkconfig
     BUILD_DIR ${CMAKE_BINARY_DIR})
 
-set(elf_file ardupilot.bin)
+option(BUILD_SHARED_LIBS OFF)
+
+set(elf_file ardupilot.elf)
 
 add_executable(${elf_file} main.c)
 

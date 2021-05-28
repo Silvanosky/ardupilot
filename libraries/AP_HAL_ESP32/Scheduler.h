@@ -19,67 +19,67 @@
 #include "HAL_ESP32_Namespace.h"
 
 #define LOWPRIO 0
-#define HIGHPRIO configMAX_PRIORITIES
+#define HIGHPRIO configMAX_PRIORITIES - 1
 
 #define ESP32_SCHEDULER_MAX_TIMER_PROCS 8
 #define ESP32_SCHEDULER_MAX_IO_PROCS 8
 
-#define APM_MONITOR_PRIORITY    183
-#define APM_MAIN_PRIORITY       180
-#define APM_TIMER_PRIORITY      181
-#define APM_RCOUT_PRIORITY      181
-#define APM_RCIN_PRIORITY       177
-#define APM_UART_PRIORITY        60
-#define APM_UART_UNBUFFERED_PRIORITY 181
-#define APM_STORAGE_PRIORITY     59
-#define APM_IO_PRIORITY          58
-#define APM_STARTUP_PRIORITY     10
+#define APM_MONITOR_PRIORITY    31
+#define APM_MAIN_PRIORITY       31
+#define APM_TIMER_PRIORITY      30
+#define APM_RCOUT_PRIORITY      30
+#define APM_RCIN_PRIORITY       25
+#define APM_UART_PRIORITY        10
+#define APM_UART_UNBUFFERED_PRIORITY 31
+#define APM_STORAGE_PRIORITY     10
+#define APM_IO_PRIORITY          10
+#define APM_STARTUP_PRIORITY     1
 #define APM_SCRIPTING_PRIORITY  LOWPRIO
-#define APM_WIFI_PRIORITY        60
+#define APM_WIFI_PRIORITY        10
 
 /*
   boost priority handling
  */
 #ifndef APM_MAIN_PRIORITY_BOOST
-#define APM_MAIN_PRIORITY_BOOST 182
+#define APM_MAIN_PRIORITY_BOOST 31
 #endif
 
 #ifndef APM_SPI_PRIORITY
 // SPI priority needs to be above main priority to ensure fast sampling of IMUs can keep up
 // with the data rate
-#define APM_SPI_PRIORITY        181
+#define APM_SPI_PRIORITY        31
 #endif
 
 #ifndef APM_CAN_PRIORITY
-#define APM_CAN_PRIORITY        178
+#define APM_CAN_PRIORITY        30
 #endif
 
 #ifndef APM_I2C_PRIORITY
-#define APM_I2C_PRIORITY        176
+#define APM_I2C_PRIORITY        30
 #endif
 
 #ifndef TIMER_THD_WA_SIZE
-#define TIMER_THD_WA_SIZE   1536
+#define TIMER_THD_WA_SIZE   4096
 #endif
 
 #ifndef RCOUT_THD_WA_SIZE
-#define RCOUT_THD_WA_SIZE    512
+#define RCOUT_THD_WA_SIZE   4096
 #endif
 
 #ifndef RCIN_THD_WA_SIZE
-#define RCIN_THD_WA_SIZE    1024
+#define RCIN_THD_WA_SIZE    4096
 #endif
 
 #ifndef IO_THD_WA_SIZE
-#define IO_THD_WA_SIZE      2048
+#define IO_THD_WA_SIZE      4096
 #endif
 
 #ifndef STORAGE_THD_WA_SIZE
-#define STORAGE_THD_WA_SIZE 1024
+#define STORAGE_THD_WA_SIZE 4096
 #endif
 
 #ifndef MONITOR_THD_WA_SIZE
-#define MONITOR_THD_WA_SIZE 512
+#define MONITOR_THD_WA_SIZE  4096
 #endif
 
 #ifndef WIFI_THD_WA_SIZE

@@ -26,7 +26,7 @@
 #include "freertos/task.h"
 
 #ifndef HAL_DEVICE_THREAD_STACK
-#define HAL_DEVICE_THREAD_STACK 1024
+#define HAL_DEVICE_THREAD_STACK 4096
 #endif
 
 
