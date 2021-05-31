@@ -37,8 +37,12 @@
 #define HAL_INS_PROBE_LIST PROBE_IMU_I2C(Invensense, 1, 0x68, ROTATION_NONE)
 
 // MAG/COMPASS choices:
+#define HAL_PROBE_EXTERNAL_I2C_COMPASSES 1
 #define HAL_COMPASS_DEFAULT HAL_COMPASS_AK8963_MPU9250
-#define HAL_MAG_PROBE_LIST PROBE_MAG_IMU_I2C(AK8963, mpu9250, 1, 0x0C, ROTATION_NONE)
+#define HAL_MAG_PROBE1 PROBE_MAG_IMU_I2C(AK8963, mpu9250, 1, 0x0C, ROTATION_NONE)
+#define HAL_MAG_PROBE2 PROBE_MAG_I2C(AK8963, 0, 0x0C, ROTATION_NONE)
+//#define HAL_MAG_PROBE3 PROBE_MAG_I2C(driver, bus, address, ROTATION_NONE)
+#define HAL_MAG_PROBE_LIST HAL_MAG_PROBE1; HAL_MAG_PROBE2;
 
 // BARO choices:
 #define HAL_BARO_DEFAULT HAL_BARO_BMP280_I2C
@@ -71,8 +75,6 @@
 //#define HAL_ESP32_ADC_PINS HAL_ESP32_ADC_PINS_OPTION1
 #define HAL_ESP32_ADC_PINS HAL_ESP32_ADC_PINS_OPTION2
 
-#define HAL_PROBE_EXTERNAL_I2C_COMPASSES 1
-
 // uncommenting one or more of these will give more console debug in certain areas..
 //#define INSEDEBUG 1
 //#define STORAGEDEBUG 1
@@ -83,8 +85,8 @@
 // 2 use udp, 1 use tcp...  for udp,client needs to connect as UDPCL in missionplanner etc to 192.168.4.1 port 14550
 #define HAL_ESP32_WIFI 1
 
-#define WIFI_SSID "ardupilot123"
-#define WIFI_PWD "ardupilot123"
+#define WIFI_SSID "ESP32-PXHWK"
+#define WIFI_PWD "ardupilot-esp32"
 
 // see boards.py
 #ifndef ENABLE_HEAP
@@ -93,7 +95,7 @@
 
 //RCOUT which pins are used?
 
-#define HAL_ESP32_RCOUT { GPIO_NUM_25,GPIO_NUM_2, GPIO_NUM_33, GPIO_NUM_32, GPIO_NUM_22, GPIO_NUM_21 } 
+#define HAL_ESP32_RCOUT { GPIO_NUM_25,GPIO_NUM_2, GPIO_NUM_33, GPIO_NUM_32, GPIO_NUM_26, GPIO_NUM_21 } 
 
 #define HAL_ESP32_SPI_BUSES {}
 
@@ -112,12 +114,13 @@
 #define HAL_ESP32_UART_DEVICES \
   {.port=UART_NUM_0, .rx=GPIO_NUM_3, .tx=GPIO_NUM_1 },{.port=UART_NUM_1, .rx=GPIO_NUM_16, .tx=GPIO_NUM_17 }
 
-#define HAVE_FILESYSTEM_SUPPORT 1
+//#define HAVE_FILESYSTEM_SUPPORT 1
 
-#define HAL_ESP32_SDSPI \
+/*#define HAL_ESP32_SDSPI \
    {.host=VSPI_HOST, .dma_ch=1, .mosi=GPIO_NUM_14, .miso=GPIO_NUM_13, .sclk=GPIO_NUM_27, .cs=GPIO_NUM_26}
+*/
 
-#define HAL_ESP32_SDCARD 1
+//#define HAL_ESP32_SDCARD 1
 #define LOGGER_MAVLINK_SUPPORT 1
 #define HAL_BOARD_LOG_DIRECTORY "/SDCARD/APM/LOGS"
 #define HAL_BOARD_TERRAIN_DIRECTORY "/SDCARD/APM/TERRAIN"
@@ -126,5 +129,5 @@
 
 // this becomes the default value for the ardupilot param LOG_BACKEND_TYPE, which most ppl want to be 1, for log-to-flash
 // setting to 2 means log-over-mavlink to a companion computer etc.
-#define HAL_LOGGING_BACKENDS_DEFAULT 1
+#define HAL_LOGGING_BACKENDS_DEFAULT 2
 
