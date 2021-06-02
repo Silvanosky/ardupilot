@@ -95,7 +95,7 @@ def esp32_firmware(self):
     self.link_task.always_run = True
     esp_idf = self.bld.cmake('esp-idf')
 
-    build = esp_idf.build('', target='esp-idf_build/ardupilot.bin')
+    build = esp_idf.build('all', target='esp-idf_build/ardupilot.bin')
     build.post()
 
     build.cmake_build_task.set_run_after(self.link_task)
