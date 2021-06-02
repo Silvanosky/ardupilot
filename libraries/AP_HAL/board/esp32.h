@@ -33,7 +33,7 @@
 #define __BYTE_ORDER     __LITTLE_ENDIAN
 
 // whenver u get ... error: "xxxxxxx" is not defined, evaluates to 0 [-Werror=undef]  just define it below as 0
-#define CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY 0
+/*#define CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY 0
 #define XCHAL_ERRATUM_453 0
 #define CONFIG_FREERTOS_CORETIMER_0 0
 #define CONFIG_FREERTOS_CHECK_STACKOVERFLOW_NONE 0
@@ -58,4 +58,4 @@
 #define LWIP_COMPAT_SOCKET_ADDR 0
 #define CONFIG_ESP32_WIFI_TX_BA_WIN 0
 #define CONFIG_ESP32_WIFI_RX_BA_WIN 0
-
+*/

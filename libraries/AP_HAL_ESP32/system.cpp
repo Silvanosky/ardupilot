@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include "esp_timer.h"
+#include <sys/time.h>
 
 namespace AP_HAL {
 
@@ -49,7 +50,10 @@ uint32_t millis()
 
 uint64_t micros64()
 {
-    return esp_timer_get_time();
+//    return esp_timer_get_time();
+    struct timeval tv_now;
+    gettimeofday(&tv_now, NULL);
+    return (int64_t)tv_now.tv_sec * 1000000L + (int64_t)tv_now.tv_usec;
 }
 
 uint64_t millis64()
