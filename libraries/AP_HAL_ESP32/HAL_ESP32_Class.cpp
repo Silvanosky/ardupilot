@@ -28,7 +28,9 @@
 #include <AP_Vehicle/AP_Vehicle_Type.h>
 
 static ESP32::UARTDriver uartADriver(0);
-static ESP32::UARTDriver uartBDriver(1);
+//static Empty::UARTDriver uartADriver;
+//static ESP32::UARTDriver uartBDriver(1);
+static Empty::UARTDriver uartBDriver;
 #ifdef HAL_ESP32_WIFI
 	#if HAL_ESP32_WIFI == 1
 	static ESP32::WiFiDriver uartCDriver; //tcp, client should connect to 192.168.4.1 port 5760
@@ -39,7 +41,8 @@ static ESP32::UARTDriver uartBDriver(1);
 static Empty::UARTDriver uartCDriver;
 #endif
 
-static ESP32::UARTDriver uartDDriver(2);
+//static ESP32::UARTDriver uartDDriver(2);
+static Empty::UARTDriver uartDDriver;
 static Empty::UARTDriver uartEDriver;
 static Empty::UARTDriver uartFDriver;
 static Empty::UARTDriver uartGDriver;
@@ -183,7 +186,7 @@ static void IRAM_ATTR main_loop()
 #ifdef HAL_I2C_CLEAR_BUS
     // Clear all I2C Buses. This can be needed on some boards which
     // can get a stuck I2C peripheral on boot
-    ESP32::I2CBus::clear_all();
+    //ESP32::I2CBus::clear_all();
 #endif
 
     hal.serial(0)->begin(115200);
@@ -193,7 +196,7 @@ static void IRAM_ATTR main_loop()
     ESP32::SPIDevice::test_clock_freq();
 #endif
 
-    hal.analogin->init();
+    //hal.analogin->init();
     hal.scheduler->init();
 
     /*

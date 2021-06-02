@@ -19,43 +19,43 @@
 #include "HAL_ESP32_Namespace.h"
 
 #define LOWPRIO 0
-#define HIGHPRIO configMAX_PRIORITIES - 1
+#define HIGHPRIO configMAX_PRIORITIES
 
 #define ESP32_SCHEDULER_MAX_TIMER_PROCS 8
 #define ESP32_SCHEDULER_MAX_IO_PROCS 8
 
-#define APM_MONITOR_PRIORITY    31
-#define APM_MAIN_PRIORITY       31
-#define APM_TIMER_PRIORITY      30
-#define APM_RCOUT_PRIORITY      30
-#define APM_RCIN_PRIORITY       25
-#define APM_UART_PRIORITY        10
-#define APM_UART_UNBUFFERED_PRIORITY 31
-#define APM_STORAGE_PRIORITY     10
-#define APM_IO_PRIORITY          10
-#define APM_STARTUP_PRIORITY     1
+#define APM_MONITOR_PRIORITY    (HIGHPRIO-15)
+#define APM_MAIN_PRIORITY       (HIGHPRIO-5)
+#define APM_TIMER_PRIORITY      (HIGHPRIO-15)
+#define APM_RCOUT_PRIORITY      (HIGHPRIO-2)
+#define APM_RCIN_PRIORITY       (HIGHPRIO-3)
+#define APM_UART_PRIORITY       (HIGHPRIO-20)
+#define APM_UART_UNBUFFERED_PRIORITY (HIGHPRIO-5)
+#define APM_STORAGE_PRIORITY     (HIGHPRIO-15)
+#define APM_IO_PRIORITY          (HIGHPRIO-20)
+#define APM_STARTUP_PRIORITY     (HIGHPRIO-20)
 #define APM_SCRIPTING_PRIORITY  LOWPRIO
-#define APM_WIFI_PRIORITY        10
+#define APM_WIFI_PRIORITY        (HIGHPRIO-15)
 
 /*
   boost priority handling
  */
 #ifndef APM_MAIN_PRIORITY_BOOST
-#define APM_MAIN_PRIORITY_BOOST 31
+#define APM_MAIN_PRIORITY_BOOST (HIGHPRIO)
 #endif
 
 #ifndef APM_SPI_PRIORITY
 // SPI priority needs to be above main priority to ensure fast sampling of IMUs can keep up
 // with the data rate
-#define APM_SPI_PRIORITY        31
+#define APM_SPI_PRIORITY        (HIGHPRIO-1)
 #endif
 
 #ifndef APM_CAN_PRIORITY
-#define APM_CAN_PRIORITY        30
+#define APM_CAN_PRIORITY        (HIGHPRIO-10)
 #endif
 
 #ifndef APM_I2C_PRIORITY
-#define APM_I2C_PRIORITY        30
+#define APM_I2C_PRIORITY        (HIGHPRIO-1)
 #endif
 
 #ifndef TIMER_THD_WA_SIZE

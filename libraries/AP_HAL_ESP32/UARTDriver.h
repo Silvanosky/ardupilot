@@ -26,24 +26,13 @@
 #include <esp_task_wdt.h>
 #include <esp_event_base.h>
 
-#define RX_BOUNCE_BUFSIZE 64U
-#define TX_BOUNCE_BUFSIZE 64U
-
-#define LOOP_EVENT_QUEUE_SIZE (16)
+#define RX_BOUNCE_BUFSIZE 128U
+#define TX_BOUNCE_BUFSIZE 128U
 
 // enough for uartA to uartI, plus IOMCU
 #define UART_MAX_DRIVERS 10
 
 #define SERIAL_BUFFERS_SIZE 512
-
-
-enum {
-    EVT_DATA,
-    EVT_PARITY,
-    EVT_TRANSMIT_END,
-    EVT_TRANSMIT_DATA_READY,
-    EVT_TRANSMIT_UNBUFFERED
-};
 
 namespace ESP32 {
 
@@ -166,8 +155,8 @@ private:
     static UARTDriver *uart_drivers[UART_MAX_DRIVERS];
 
     // thread used for writing and reading
-    //TaskHandle_t* volatile uart_thread_ctx;
-    esp_event_loop_handle_t uart_thread_ctx;
+    TaskHandle_t uart_thread_ctx;
+
     char uart_thread_name[6];
     uint32_t last_thread_run_us;
 
@@ -187,7 +176,7 @@ private:
 
     struct {
         // thread waiting for data
-        TaskHandle_t *thread_ctx;
+        TaskHandle_t thread_ctx;
         // number of bytes needed
         uint16_t n;
     } _wait;
@@ -248,12 +237,9 @@ private:
 
     static void thread_rx_init();
     void thread_init();
-    void uart_thread(uint32_t event_id);
+    void uart_thread();
     static void uart_rx_thread(void* arg);
-    static void uart_thread_trampoline(void *event_handler_arg,
-                                       esp_event_base_t event_base,
-                                       int32_t event_id,
-                                       void *event_data);
+    static void uart_thread_trampoline(void *p);
 };
 
 }

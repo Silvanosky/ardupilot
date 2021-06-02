@@ -26,10 +26,9 @@
 #include "driver/gpio.h"
 #include "driver/uart.h"
 #include <esp_event.h>
+#include <freertos/task.h>
 
 extern const AP_HAL::HAL& hal;
-
-ESP_EVENT_DEFINE_BASE(UART_EVENTS);
 
 using namespace ESP32;
 
@@ -56,12 +55,17 @@ uint32_t UARTDriver::_last_stats_ms;
 #endif
 
 #ifndef HAL_UART_STACK_SIZE
-#define HAL_UART_STACK_SIZE 320
+#define HAL_UART_STACK_SIZE 4096
 #endif
 
 #ifndef HAL_UART_RX_STACK_SIZE
-#define HAL_UART_RX_STACK_SIZE 768
+#define HAL_UART_RX_STACK_SIZE 2048
 #endif
+
+#define EVT_TRANSMIT_UNBUFFERED 0x01
+#define EVT_TRANSMIT_DATA_READY 0x02
+
+#define EVT_DATA 0x01
 
 UARTDriver::UARTDriver(uint8_t _serial_num)
     :   serial_num(_serial_num),
@@ -80,25 +84,41 @@ UARTDriver::UARTDriver(uint8_t _serial_num)
  */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic error "-Wframe-larger-than=128"
-void UARTDriver::uart_thread(uint32_t event_id)
+void IRAM_ATTR UARTDriver::uart_thread()
 {
-    //uart_wait_tx_done(sdef.serial, 1* portTICK_PERIOD_MS);
-    uint32_t now = AP_HAL::micros();
-    bool need_tick = false;
-    if (now - last_thread_run_us >= 1000) {
-        // run the timer tick if it's been more than 1ms since we last run
-        need_tick = true;
-        last_thread_run_us = now;
+    uint32_t last_thread_run_us = 0; // last time we did a 1kHz run of this uart
+    uint32_t event;
+
+    while (uart_thread_ctx == nullptr) {
+        hal.scheduler->delay_microseconds(1000);
     }
 
-    if (event_id == EVT_TRANSMIT_UNBUFFERED) {
-            //chThdSetPriority(unbuffered_writes ? MIN(_uart_owner_thd->realprio + 1, APM_UART_UNBUFFERED_PRIORITY) : APM_UART_PRIORITY);
-    }
+    while (true) {
+        xTaskNotifyWait(0x00,
+                        ULONG_MAX,
+                        &event,
+                        pdMS_TO_TICKS(1));
+        uint32_t now = AP_HAL::micros();
+        bool need_tick = false;
+        if (now - last_thread_run_us >= 1000) {
+            // run the timer tick if it's been more than 1ms since we last run
+            need_tick = true;
+            last_thread_run_us = now;
+        }
 
-    if (_tx_initialised && (event_id ==  EVT_TRANSMIT_DATA_READY || need_tick)) {
-        _tx_timer_tick();
+        // change the thread priority if requested - if unbuffered it should only have higher priority than the owner so that
+        // handoff occurs immediately
+        if (event & EVT_TRANSMIT_UNBUFFERED) {
+            auto prio = uxTaskPriorityGet(_uart_owner_thd);
+            vTaskPrioritySet(NULL, unbuffered_writes ? MIN(prio + 1, APM_UART_UNBUFFERED_PRIORITY) : APM_UART_PRIORITY);
+        }
+
+        if (_tx_initialised && (event & EVT_TRANSMIT_DATA_READY || need_tick)) {
+            _tx_timer_tick();
+        }
+        hal.scheduler->delay_microseconds(100);
     }
-}
+    }
 #pragma GCC diagnostic pop
 
 /*
@@ -107,7 +127,7 @@ void UARTDriver::uart_thread(uint32_t event_id)
   We use events indexed by serial_num to trigger a more rapid send for
   unbuffered_write uarts, and run at 1kHz for general UART handling
  */
-void UARTDriver::uart_rx_thread(void* arg)
+void IRAM_ATTR UARTDriver::uart_rx_thread(void* arg)
 {
     while (uart_rx_thread_ctx == nullptr) {
         hal.scheduler->delay_microseconds(1000);
@@ -116,7 +136,7 @@ void UARTDriver::uart_rx_thread(void* arg)
     while (true) {
         hal.scheduler->delay_microseconds(1000);
 
-        for (uint8_t i=0; i<UART_MAX_DRIVERS; i++) {
+        for (uint8_t i=0; i < UART_MAX_DRIVERS; i++) {
             if (uart_drivers[i] == nullptr) {
                 continue;
             }
@@ -153,38 +173,23 @@ void UARTDriver::thread_init(void)
 {
     if (uart_thread_ctx == nullptr) {
         hal.util->snprintf(uart_thread_name, sizeof(uart_thread_name), sdef.is_usb ? "OTG%1u" : "UART%1u", sdef.instance);
-        /*xTaskCreate(uart_thread_trampoline,
+        xTaskCreate(uart_thread_trampoline,
                 uart_thread_name,
                 HAL_UART_STACK_SIZE,
                 this,
                 unbuffered_writes ? APM_UART_UNBUFFERED_PRIORITY : APM_UART_PRIORITY,
-                &uart_thread_ctx);*/
+                &uart_thread_ctx);
 
-        esp_event_loop_args_t loop_with_task_args = {
-            .queue_size = LOOP_EVENT_QUEUE_SIZE,
-            .task_name = uart_thread_name, // task will be created
-            .task_priority = (unsigned int)(unbuffered_writes ? APM_UART_UNBUFFERED_PRIORITY : APM_UART_PRIORITY),
-            .task_stack_size = HAL_UART_STACK_SIZE,
-            .task_core_id = tskNO_AFFINITY
-        };
-        ESP_ERROR_CHECK(esp_event_loop_create(&loop_with_task_args, &uart_thread_ctx));
-        ESP_ERROR_CHECK(
-        esp_event_handler_instance_register_with(uart_thread_ctx,
-                                                 UART_EVENTS,
-                                                 ESP_EVENT_ANY_ID,
-                                                 uart_thread_trampoline,
-                                                 (void*)this,
-                                                 NULL));
         if (uart_thread_ctx == nullptr) {
             AP_HAL::panic("Could not create UART TX thread\n");
         }
     }
 }
 
-void UARTDriver::uart_thread_trampoline(void *event_handler_arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
+void UARTDriver::uart_thread_trampoline(void *p)
 {
-    UARTDriver* uart = static_cast<UARTDriver*>(event_handler_arg);
-    uart->uart_thread(event_id);
+    UARTDriver* uart = static_cast<UARTDriver*>(p);
+    uart->uart_thread();
 }
 
 #ifndef HAL_STDOUT_SERIAL
@@ -229,11 +234,9 @@ void UARTDriver::begin(uint32_t b, uint16_t rxS, uint16_t txS)
         min_tx_buffer *= 2;
     }
 
-#if HAL_MEM_CLASS >= HAL_MEM_CLASS_500
     // on boards with plenty of memory we can use larger buffers
     min_tx_buffer *= 2;
     min_rx_buffer *= 2;
-#endif
 
     // on PX4 we have enough memory to have a larger transmit and
     // receive buffer for all ports. This means we don't get delays
@@ -289,9 +292,9 @@ void UARTDriver::begin(uint32_t b, uint16_t rxS, uint16_t txS)
     }
 
 #if HAL_USE_SERIAL == TRUE
-        if (_baudrate != 0) {
+        if (!_tx_initialised  && !_rx_initialised) {
             uart_config_t config = {
-                .baud_rate = _baudrate,
+                .baud_rate = (int)_baudrate,
                 .data_bits = UART_DATA_8_BITS,
                 .parity = UART_PARITY_DISABLE,
                 .stop_bits = UART_STOP_BITS_1,
@@ -304,6 +307,8 @@ void UARTDriver::begin(uint32_t b, uint16_t rxS, uint16_t txS)
                          sdef.rts_line, //UART_PIN_NO_CHANGE,
                          sdef.cts_line);
             uart_driver_install(sdef.serial, 2*RX_BOUNCE_BUFSIZE, 2*TX_BOUNCE_BUFSIZE, 20, &serevt, 0);
+        } else {
+            uart_set_baudrate(sdef.serial, _baudrate);
         }
 #endif // HAL_USE_SERIAL
 
@@ -388,10 +393,6 @@ uint32_t UARTDriver::available_locked(uint32_t key)
 {
     if (lock_read_key != 0 && key != lock_read_key) {
         return -1;
-    }
-    if (sdef.is_usb) {
-#ifdef HAVE_USB_SERIAL
-#endif
     }
     return _readbuf.available();
 }
@@ -506,12 +507,7 @@ size_t UARTDriver::write(uint8_t c)
     }
     size_t ret = _writebuf.write(&c, 1);
     if (unbuffered_writes) {
-        ESP_ERROR_CHECK(esp_event_post_to(uart_thread_ctx,
-                                          UART_EVENTS,
-                                          EVT_TRANSMIT_DATA_READY,
-                                          NULL,
-                                          0,
-                                          portMAX_DELAY));
+        xTaskNotify(uart_thread_ctx, EVT_TRANSMIT_DATA_READY, eSetBits);
     }
     _write_mutex.give();
     return ret;
@@ -540,12 +536,7 @@ size_t UARTDriver::write(const uint8_t *buffer, size_t size)
 
     size_t ret = _writebuf.write(buffer, size);
     if (unbuffered_writes) {
-        ESP_ERROR_CHECK(esp_event_post_to(uart_thread_ctx,
-                                          UART_EVENTS,
-                                          EVT_TRANSMIT_DATA_READY,
-                                          NULL,
-                                          0,
-                                          portMAX_DELAY));
+        xTaskNotify(uart_thread_ctx, EVT_TRANSMIT_DATA_READY, eSetBits);
     }
     return ret;
 }
@@ -587,17 +578,20 @@ size_t UARTDriver::write_locked(const uint8_t *buffer, size_t size, uint32_t key
  */
 bool UARTDriver::wait_timeout(uint16_t n, uint32_t timeout_ms)
 {
+    uint32_t event;
     uint32_t t0 = AP_HAL::millis();
     while (available() < n) {
-    //    chEvtGetAndClearEvents(EVT_DATA);
-     //   _wait.n = n;
-      //  _wait.thread_ctx = chThdGetSelfX();
+        _wait.n = n;
+        _wait.thread_ctx = xTaskGetCurrentTaskHandle();
         uint32_t now = AP_HAL::millis();
         if (now - t0 >= timeout_ms) {
             break;
         }
-       // chEvtWaitAnyTimeout(EVT_DATA, chTimeMS2I(timeout_ms - (now - t0)));
-        //TODO send / check event for optimisation
+        xTaskNotifyWait(ULONG_MAX,
+                        ULONG_MAX,
+                        &event,
+                        pdMS_TO_TICKS(timeout_ms - (now - t0)));
+
     }
     return available() >= n;
 }
@@ -617,13 +611,9 @@ void UARTDriver::write_pending_bytes_NODMA(uint32_t n)
         int ret = -1;
         if (sdef.is_usb) {
             ret = 0;
-#ifdef HAVE_USB_SERIAL
-            //ret = chnWriteTimeout((SerialUSBDriver*)sdef.serial, vec[i].data, vec[i].len, TIME_IMMEDIATE);
-            //TODO USB
-#endif
         } else {
 #if HAL_USE_SERIAL == TRUE
-            ret = uart_write_bytes(sdef.serial, vec[i].data, vec[i].len);
+            ret = uart_write_bytes(sdef.serial, (char*)vec[i].data, vec[i].len);
 #endif
         }
         if (ret < 0) {
@@ -702,30 +692,10 @@ void UARTDriver::_rx_timer_tick(void)
     _in_rx_timer = true;
 
     // don't try IO on a disconnected USB port
-/*
-    if (sdef.is_usb) {
-#ifdef HAVE_USB_SERIAL
-        if (((SerialUSBDriver*)sdef.serial)->config->usbp->state != USB_ACTIVE) {
-            _in_rx_timer = false;
-            return;
-        }
-#endif
-    }
-    if (sdef.is_usb) {
-#ifdef HAVE_USB_SERIAL
-        ((GPIO *)hal.gpio)->set_usb_connected();
-#endif
-    }
-*/
     read_bytes_NODMA();
 
     if (_wait.thread_ctx && _readbuf.available() >= _wait.n) {
-        ESP_ERROR_CHECK(esp_event_post_to(uart_thread_ctx,
-                                          UART_EVENTS,
-                                          EVT_DATA,
-                                          NULL,
-                                          0,
-                                          portMAX_DELAY));
+        xTaskNotify(_wait.thread_ctx, EVT_DATA, eSetBits);
     }
     _in_rx_timer = false;
 }
@@ -740,16 +710,9 @@ void UARTDriver::read_bytes_NODMA()
     for (int i = 0; i < n_vec; i++) {
         int ret = 0;
         //Do a non-blocking read
-        if (sdef.is_usb) {
-#ifdef HAVE_USB_SERIAL
-            //ret = chnReadTimeout((SerialUSBDriver*)sdef.serial, vec[i].data, vec[i].len, TIME_IMMEDIATE);
-            //TODO USB
-#endif
-        } else {
 #if HAL_USE_SERIAL == TRUE
-            ret = uart_read_bytes(sdef.serial, vec[i].data, vec[i].len, 0)
+		ret = uart_read_bytes(sdef.serial, vec[i].data, vec[i].len, 0);
 #endif
-        }
         if (ret < 0) {
             break;
         }
@@ -773,23 +736,6 @@ void UARTDriver::_tx_timer_tick(void)
     }
 
     _in_tx_timer = true;
-
-    // don't try IO on a disconnected USB port
-/*
-    if (sdef.is_usb) {
-#ifdef HAVE_USB_SERIAL
-        if (((SerialUSBDriver*)sdef.serial)->config->usbp->state != USB_ACTIVE) {
-            _in_tx_timer = false;
-            return;
-        }
-#endif
-    }
-    if (sdef.is_usb) {
-#ifdef HAVE_USB_SERIAL
-        ((GPIO *)hal.gpio)->set_usb_connected();
-#endif
-    }
-    */
 
     // now do the write
     write_pending_bytes();
@@ -838,12 +784,7 @@ void UARTDriver::update_rts_line(void)
 bool UARTDriver::set_unbuffered_writes(bool on)
 {
     unbuffered_writes = on;
-    ESP_ERROR_CHECK(esp_event_post_to(uart_thread_ctx,
-                                      UART_EVENTS,
-                                      EVT_TRANSMIT_UNBUFFERED,
-                                      NULL,
-                                      0,
-                                      portMAX_DELAY));
+    xTaskNotify(uart_thread_ctx, EVT_TRANSMIT_UNBUFFERED, eSetBits);
     return true;
 }
 

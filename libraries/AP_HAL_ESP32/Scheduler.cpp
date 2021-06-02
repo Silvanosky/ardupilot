@@ -329,6 +329,7 @@ bool Scheduler::in_expected_delay() const
         // until setup() is complete we expect delays
         return true;
     }
+
     if (expect_delay_start != 0) {
         uint32_t now = AP_HAL::millis();
         if (now - expect_delay_start <= expect_delay_length) {
@@ -411,7 +412,7 @@ printf("%s:%d initialised \n", __PRETTY_FUNCTION__, __LINE__);
             // thread when disarmed
             if (now - last_sd_start_ms > 3000) {
                 last_sd_start_ms = now;
-                sdcard_retry();
+                //sdcard_retry();
                 //AP::FS().retry_mount(); //TODO check filesystem implementation
             }
         }
