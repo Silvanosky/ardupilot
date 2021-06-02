@@ -1,7 +1,7 @@
 #pragma once
 
-/* Umbrella header for all private headers of the AP_HAL_ChibiOS module.
- * Only import this header from inside AP_HAL_ChibiOS
+/* Umbrella header for all private headers of the AP_HAL_ESP32 module.
+ * Only import this header from inside AP_HAL_ESP32
  */
 
 #include "AnalogIn.h"
