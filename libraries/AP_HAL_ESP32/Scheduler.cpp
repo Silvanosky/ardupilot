@@ -412,7 +412,7 @@ printf("%s:%d initialised \n", __PRETTY_FUNCTION__, __LINE__);
             // thread when disarmed
             if (now - last_sd_start_ms > 3000) {
                 last_sd_start_ms = now;
-                //sdcard_retry();
+                sdcard_retry();
                 //AP::FS().retry_mount(); //TODO check filesystem implementation
             }
         }
@@ -652,6 +652,7 @@ void Scheduler::expect_delay_ms(uint32_t ms)
 void Scheduler::watchdog_pat(void)
 {
     //TODO inform watchdog about futur delay
+    esp_task_wdt_reset();
     last_watchdog_pat_ms = AP_HAL::millis();
 }
 
