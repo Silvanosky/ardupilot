@@ -25,6 +25,7 @@
 #include "DeviceBus.h"
 
 #include "driver/i2c.h"
+#include "software_i2c.h"
 
 namespace ESP32 {
 
@@ -34,6 +35,7 @@ struct I2CBusDesc {
     gpio_num_t scl;
     uint32_t speed;
     bool internal;
+    bool soft;
 };
 
 class I2CBus : public  DeviceBus {
@@ -41,6 +43,8 @@ public:
     I2CBus():DeviceBus(Scheduler::I2C_PRIORITY) {};
     i2c_port_t port;
 	uint32_t bus_clock;
+    sw_i2c_handle sw_handle;
+    bool soft;
 };
 
 class I2CDevice : public AP_HAL::I2CDevice {
@@ -88,13 +92,13 @@ public:
     /* See AP_HAL::Device::adjust_periodic_callback() */
     bool adjust_periodic_callback(AP_HAL::Device::PeriodicHandle h, uint32_t period_usec) override;
 
-    AP_HAL::Semaphore* get_semaphore() override
+    AP_HAL::Semaphore* get_semaphore() override //TODO check all
     {
         // if asking for invalid bus number use bus 0 semaphore
         return &bus.semaphore;
     }
 
-private:
+protected:
     I2CBus &bus;
     uint8_t _retries;
     uint8_t _address;

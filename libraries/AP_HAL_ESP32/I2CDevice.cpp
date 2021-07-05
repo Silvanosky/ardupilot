@@ -31,19 +31,28 @@ I2CBus I2CDeviceManager::businfo[ARRAY_SIZE(i2c_bus_desc)];
 I2CDeviceManager::I2CDeviceManager(void)
 {
     for (uint8_t i=0; i<ARRAY_SIZE(i2c_bus_desc); i++) {
-        i2c_config_t i2c_bus_config;
-        i2c_bus_config.mode = I2C_MODE_MASTER;
-        i2c_bus_config.sda_io_num = i2c_bus_desc[i].sda;
-        i2c_bus_config.scl_io_num = i2c_bus_desc[i].scl;
-        i2c_bus_config.sda_pullup_en = GPIO_PULLUP_ENABLE;
-        i2c_bus_config.scl_pullup_en = GPIO_PULLUP_ENABLE;
-        i2c_bus_config.master.clk_speed = i2c_bus_desc[i].speed;
-        i2c_port_t p = i2c_bus_desc[i].port;
-        businfo[i].port = p;
-        businfo[i].bus_clock = i2c_bus_desc[i].speed;
-        i2c_param_config(p, &i2c_bus_config);
-        i2c_driver_install(p, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_IRAM);
-        i2c_filter_enable(p, 7);
+        if (i2c_bus_desc[i].soft) {
+            businfo[i].sw_handle.sda = i2c_bus_desc[i].sda;
+            businfo[i].sw_handle.scl = i2c_bus_desc[i].scl;
+            businfo[i].sw_handle.speed = i2c_bus_desc[i].speed;
+            businfo[i].soft = true;
+            sw_i2c_init(&businfo[i].sw_handle);
+        } else {
+            i2c_config_t i2c_bus_config;
+            i2c_bus_config.mode = I2C_MODE_MASTER;
+            i2c_bus_config.sda_io_num = i2c_bus_desc[i].sda;
+            i2c_bus_config.scl_io_num = i2c_bus_desc[i].scl;
+            i2c_bus_config.sda_pullup_en = GPIO_PULLUP_ENABLE;
+            i2c_bus_config.scl_pullup_en = GPIO_PULLUP_ENABLE;
+            i2c_bus_config.master.clk_speed = i2c_bus_desc[i].speed;
+            i2c_port_t p = i2c_bus_desc[i].port;
+            businfo[i].port = p;
+            businfo[i].bus_clock = i2c_bus_desc[i].speed;
+            businfo[i].soft = false;
+            i2c_param_config(p, &i2c_bus_config);
+            i2c_driver_install(p, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_IRAM);
+            i2c_filter_enable(p, 7);
+        }
     }
 }
 
@@ -71,33 +80,54 @@ bool I2CDevice::transfer(const uint8_t *send, uint32_t send_len,
         return false;
     }
 
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    if (send_len != 0 && send != nullptr) {
-        //tx with optional rx (after tx)
-        i2c_master_start(cmd);
-        i2c_master_write_byte(cmd, (_address << 1) | I2C_MASTER_WRITE, true);
-        i2c_master_write(cmd, (uint8_t*)send, send_len, true);
-    }
-    if (recv_len != 0 && recv != nullptr) {
-        //rx only or rx after tx
-        //rx separated from tx by (re)start
-        i2c_master_start(cmd);
-        i2c_master_write_byte(cmd, (_address << 1) | I2C_MASTER_READ, true);
-        i2c_master_read(cmd, (uint8_t *)recv, recv_len, I2C_MASTER_LAST_NACK);
-    }
-    i2c_master_stop(cmd);
-
-	bool result = false;
-    TickType_t timeout = 1 + 16L * (send_len + recv_len) * 1000 / bus.bus_clock / portTICK_PERIOD_MS;
-    for (int i = 0; !result && i < _retries; i++) {
-        result = (i2c_master_cmd_begin(bus.port, cmd, timeout) == ESP_OK);
-        if (!result) {
-            i2c_reset_tx_fifo(bus.port);
-            i2c_reset_rx_fifo(bus.port);
+    bool result = false;
+    if (bus.soft) {
+        if (send_len != 0 && send != nullptr) {
+            //tx with optional rx (after tx)
+            i2c_master_start(&bus.sw_handle);
+            sw_i2c_master_start(&bus.sw_handle);
+            sw_i2c_master_write_byte(&bus.sw_handle, (_address << 1) | I2C_MASTER_WRITE);
+            sw_i2c_master_write(&bus.sw_handle, (uint8_t*)send, send_len);
         }
-    }
+        if (recv_len != 0 && recv != nullptr) {
+            //rx only or rx after tx
+            //rx separated from tx by (re)start
+            sw_i2c_master_start(&bus.sw_handle);
+            sw_i2c_master_write_byte(&bus.sw_handle,
+                    (_address << 1) | I2C_MASTER_READ);
+            sw_i2c_master_read(&bus.sw_handle,
+                    (uint8_t *)recv, recv_len, I2C_MASTER_LAST_NACK);
+        }
+        sw_i2c_master_stop(&bus.sw_handle);
+        result = true; //TODO check all
+    } else {
+        i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+        if (send_len != 0 && send != nullptr) {
+            //tx with optional rx (after tx)
+            i2c_master_start(cmd);
+            i2c_master_write_byte(cmd, (_address << 1) | I2C_MASTER_WRITE, true);
+            i2c_master_write(cmd, (uint8_t*)send, send_len, true);
+        }
+        if (recv_len != 0 && recv != nullptr) {
+            //rx only or rx after tx
+            //rx separated from tx by (re)start
+            i2c_master_start(cmd);
+            i2c_master_write_byte(cmd, (_address << 1) | I2C_MASTER_READ, true);
+            i2c_master_read(cmd, (uint8_t *)recv, recv_len, I2C_MASTER_LAST_NACK);
+        }
+        i2c_master_stop(cmd);
 
-    i2c_cmd_link_delete(cmd);
+        TickType_t timeout = 1 + 16L * (send_len + recv_len) * 1000 / bus.bus_clock / portTICK_PERIOD_MS;
+        for (int i = 0; !result && i < _retries; i++) {
+            result = (i2c_master_cmd_begin(bus.port, cmd, timeout) == ESP_OK);
+            if (!result) {
+                i2c_reset_tx_fifo(bus.port);
+                i2c_reset_rx_fifo(bus.port);
+            }
+        }
+
+        i2c_cmd_link_delete(cmd);
+    }
 
     return result;
 }
