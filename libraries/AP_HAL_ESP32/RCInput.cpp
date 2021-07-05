@@ -25,9 +25,12 @@ void RCInput::init()
     if (_init) {
         return;
     }
+#ifndef HAL_BUILD_AP_PERIPH
+    AP::RC().init();
+#endif
+
 #ifdef HAL_ESP32_RCIN
     sig_reader.init();
-    rcin_prot.init();
 #endif
     _init = true;
 }
@@ -37,13 +40,13 @@ bool RCInput::new_input()
     if (!_init) {
         return false;
     }
-    if (!rcin_mutex.take_nonblocking()) {
-        return false;
+    bool valid;
+    {
+        WITH_SEMAPHORE(rcin_mutex);
+        valid = _rcin_timestamp_last_signal != _last_read;
+        _last_read = _rcin_timestamp_last_signal;
     }
-    bool valid = _rcin_timestamp_last_signal != _last_read;
 
-    _last_read = _rcin_timestamp_last_signal;
-    rcin_mutex.give();
     return valid;
 }
 
@@ -60,9 +63,11 @@ uint16_t RCInput::read(uint8_t channel)
     if (!_init || (channel >= MIN(RC_INPUT_MAX_CHANNELS, _num_channels))) {
         return 0;
     }
-    rcin_mutex.take(HAL_SEMAPHORE_BLOCK_FOREVER);
-    uint16_t v = _rc_values[channel];
-    rcin_mutex.give();
+    uint16_t v;
+    {
+        WITH_SEMAPHORE(rcin_mutex);
+        v = _rc_values[channel];
+    }
     return v;
 }
 
@@ -75,8 +80,9 @@ uint8_t RCInput::read(uint16_t* periods, uint8_t len)
     if (len > RC_INPUT_MAX_CHANNELS) {
         len = RC_INPUT_MAX_CHANNELS;
     }
-    for (uint8_t i = 0; i < len; i++) {
-        periods[i] = read(i);
+    {
+        WITH_SEMAPHORE(rcin_mutex);
+        memcpy(periods, _rc_values, len*sizeof(periods[0]));
     }
     return len;
 }
@@ -86,28 +92,38 @@ void RCInput::_timer_tick(void)
     if (!_init) {
         return;
     }
+
+    AP_RCProtocol &rcprot = AP::RC();
+
 #ifdef HAL_ESP32_RCIN
     uint32_t width_s0, width_s1;
     while (sig_reader.read(width_s0, width_s1)) {
-        rcin_prot.process_pulse(width_s0, width_s1);
+        rcprot.process_pulse(width_s0, width_s1);
+
     }
 
+#ifndef HAL_NO_UARTDRIVER
     const char *rc_protocol = nullptr;
-    if (rcin_prot.new_input()) {
-        rcin_mutex.take(HAL_SEMAPHORE_BLOCK_FOREVER);
+#endif
+
+    if (rcprot.new_input()) {
+        WITH_SEMAPHORE(rcin_mutex);
         _rcin_timestamp_last_signal = AP_HAL::micros();
-        _num_channels = rcin_prot.num_channels();
+        _num_channels = rcprot.num_channels();
         _num_channels = MIN(_num_channels, RC_INPUT_MAX_CHANNELS);
-        for (uint8_t i=0; i<_num_channels; i++) {
-            _rc_values[i] = rcin_prot.read(i);
-        }
-        rcin_mutex.give();
-        rc_protocol = rcin_prot.protocol_name();
+        rcprot.read(_rc_values, _num_channels);
+        _rssi = rcprot.get_RSSI();
+#ifndef HAL_NO_UARTDRIVER
+        rc_protocol = rcprot.protocol_name();
+#endif
     }
 
+#ifndef HAL_NO_UARTDRIVER
     if (rc_protocol && rc_protocol != last_protocol) {
         last_protocol = rc_protocol;
         gcs().send_text(MAV_SEVERITY_DEBUG, "RCInput: decoding %s", last_protocol);
     }
+#endif
+
 #endif
 }
