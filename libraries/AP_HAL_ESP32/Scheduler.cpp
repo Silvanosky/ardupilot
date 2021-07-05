@@ -158,9 +158,9 @@ void Scheduler::delay(uint16_t ms)
 
 void Scheduler::delay_microseconds(uint16_t us)
 {
-    if (us <= 100) {
+    if (us < 900) {
         ets_delay_us(us);
-    } else {
+    } else { // Minimum delay for FreeRTOS is 1ms
         uint32_t tick = portTICK_PERIOD_MS * 1000;
         vTaskDelay((us+tick-1)/tick);
     }
